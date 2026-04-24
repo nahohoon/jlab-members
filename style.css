@@ -413,3 +413,262 @@ tbody td{padding:12px 16px;font-size:.86rem;color:var(--n800);vertical-align:mid
 .hidden{display:none!important}
 .mt16{margin-top:16px}
 .mb16{margin-bottom:16px}
+
+/* ═══════════════════════════════════════════════════════════
+   J_LAB v3.0 — 추가 컴포넌트 스타일
+   대시보드 개선 · 공지사항 · 다가오는행사 · 빠른실행
+   미니 카드 · 미납배너 · 납부처리버튼 · 데스크 전용
+═══════════════════════════════════════════════════════════ */
+
+/* ── 대시보드 인사 영역 ── */
+.dash-greeting {
+  margin-bottom: 18px;
+}
+.dash-greeting h2 {
+  font-size: 1.25rem; font-weight: 800;
+  color: var(--n900); line-height: 1.2;
+}
+.dash-greeting p {
+  font-size: .8rem; color: var(--gr400); margin-top: 3px;
+}
+.dash-org { color: var(--g500); }
+
+/* ── 섹션 레이블 ── */
+.dash-sec-lbl {
+  font-size: .78rem; font-weight: 700; letter-spacing: .06em;
+  color: var(--gr500); text-transform: uppercase;
+  margin: 16px 0 8px; padding-left: 2px;
+}
+
+/* ── 공지사항 목록 ── */
+.notice-list {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-bottom: 18px;
+}
+.notice-item {
+  background: var(--white); border: 1px solid var(--gr200);
+  border-radius: var(--r-md); padding: 12px 16px;
+  display: flex; flex-direction: column; gap: 4px;
+  box-shadow: var(--sh1); position: relative;
+  transition: box-shadow var(--tr);
+}
+.notice-item:hover { box-shadow: var(--sh2); }
+.notice-imp {
+  border-left: 3px solid var(--g400);
+  background: var(--g50);
+}
+.notice-badge {
+  display: inline-block; font-size: .68rem; font-weight: 700;
+  background: var(--g400); color: var(--n900);
+  padding: 2px 8px; border-radius: 8px;
+  align-self: flex-start; margin-bottom: 2px;
+}
+.notice-title {
+  font-size: .88rem; font-weight: 700; color: var(--n800); line-height: 1.4;
+}
+.notice-body {
+  font-size: .8rem; color: var(--gr500); line-height: 1.6;
+  white-space: pre-line;
+}
+.notice-date {
+  font-size: .72rem; color: var(--gr400); text-align: right; margin-top: 2px;
+}
+
+/* ── 다가오는 행사 ── */
+.upcoming-list {
+  display: flex; flex-direction: column; gap: 10px;
+  margin-bottom: 18px;
+}
+.upcoming-card {
+  background: var(--white); border: 1px solid var(--gr200);
+  border-radius: var(--r-md); padding: 14px 16px;
+  box-shadow: var(--sh1); position: relative; overflow: hidden;
+  transition: box-shadow var(--tr);
+}
+.upcoming-card::before {
+  content: ''; position: absolute;
+  left: 0; top: 0; bottom: 0; width: 3px;
+  background: linear-gradient(180deg, var(--g400), var(--b400));
+}
+.upcoming-card:hover { box-shadow: var(--sh2); }
+.uc-top {
+  display: flex; align-items: center;
+  justify-content: space-between; gap: 8px; margin-bottom: 6px;
+}
+.uc-name {
+  font-size: .92rem; font-weight: 700; color: var(--n800); flex: 1;
+}
+.uc-meta {
+  display: flex; flex-wrap: wrap; gap: 6px 16px;
+  font-size: .77rem; color: var(--gr500); line-height: 1.6;
+}
+.uc-meta span { display: flex; align-items: center; gap: 3px; }
+.uc-ico { font-size: .82rem; }
+.uc-note {
+  font-size: .75rem; color: var(--g600);
+  background: var(--g50); border-radius: 5px;
+  padding: 4px 10px; margin-top: 6px;
+}
+.upcoming-empty {
+  background: var(--gr50); border: 1px dashed var(--gr200);
+  border-radius: var(--r-md); padding: 20px 16px;
+  display: flex; align-items: center; gap: 12px;
+  color: var(--gr500); font-size: .84rem; line-height: 1.6;
+}
+
+/* D-Day 태그 */
+.day-tag {
+  display: inline-block; font-size: .72rem; font-weight: 700;
+  padding: 3px 9px; border-radius: 10px; white-space: nowrap;
+}
+.day-today {
+  background: #fffbeb; border: 1px solid var(--g300);
+  color: var(--g600);
+  animation: glow 1.8s ease-in-out infinite alternate;
+}
+.day-coming { background: var(--b50); border: 1px solid #bfdbfe; color: var(--b500); }
+.day-past   { background: var(--gr100); border: 1px solid var(--gr200); color: var(--gr400); }
+@keyframes glow {
+  from { box-shadow: 0 0 0 0 rgba(201,160,64,.25); }
+  to   { box-shadow: 0 0 0 5px rgba(201,160,64,.0); }
+}
+
+/* ── 빠른 실행 버튼 ── */
+.quick-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 10px; margin-bottom: 18px;
+}
+.quick-btn {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 7px;
+  background: var(--white); border: 1px solid var(--gr200);
+  border-radius: var(--r-md); padding: 18px 8px;
+  box-shadow: var(--sh1); cursor: pointer;
+  transition: all var(--tr);
+}
+.quick-btn:hover {
+  transform: translateY(-2px); box-shadow: var(--sh2);
+  border-color: var(--g300); background: var(--g50);
+}
+.qb-icon { font-size: 1.6rem; line-height: 1; }
+.qb-label {
+  font-size: .75rem; font-weight: 700;
+  color: var(--n700); text-align: center;
+}
+
+/* ── 운영 요약 미니 카드 ── */
+.mini-stat-row {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 10px; margin-bottom: 14px;
+}
+.mini-stat {
+  background: var(--white); border: 1px solid var(--gr200);
+  border-radius: var(--r-md); padding: 14px 16px;
+  box-shadow: var(--sh1); text-align: center;
+  position: relative; overflow: hidden;
+}
+.mini-stat::after {
+  content: ''; position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+}
+.ms-total::after { background: linear-gradient(90deg, var(--n600), var(--b400)); }
+.ms-paid::after  { background: linear-gradient(90deg, var(--green), #4ade80); }
+.ms-unpaid::after{ background: linear-gradient(90deg, var(--red), #f87171); }
+.ms-num {
+  font-size: 1.7rem; font-weight: 800;
+  color: var(--n900); line-height: 1; letter-spacing: -.04em;
+}
+.ms-unit {
+  font-size: .85rem; font-weight: 600; color: var(--gr400); margin-left: 2px;
+}
+.ms-label {
+  font-size: .73rem; color: var(--gr500); margin-top: 4px;
+}
+
+/* ── 미납 배너 ── */
+.unpaid-banner {
+  display: flex; align-items: center; justify-content: space-between;
+  background: linear-gradient(135deg, #7f1d1d, #991b1b);
+  border: 1px solid rgba(248,113,113,.25);
+  border-radius: var(--r-md); padding: 14px 18px;
+  margin-bottom: 20px; cursor: pointer;
+  transition: all var(--tr); box-shadow: var(--sh1);
+}
+.unpaid-banner:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(127,29,29,.35);
+}
+.ub-left { display: flex; align-items: center; gap: 12px; }
+.ub-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #f87171; flex-shrink: 0;
+  box-shadow: 0 0 0 4px rgba(248,113,113,.25);
+  animation: pulse 2s infinite;
+}
+.ub-title {
+  font-size: .82rem; font-weight: 700;
+  color: rgba(255,255,255,.9); margin-bottom: 2px;
+}
+.ub-desc {
+  font-size: .78rem; color: rgba(255,255,255,.65); line-height: 1.5;
+}
+.ub-desc strong { color: rgba(255,255,255,.95); }
+.ub-arrow {
+  font-size: 1.4rem; color: rgba(255,255,255,.5);
+  flex-shrink: 0; transition: transform var(--tr);
+}
+.unpaid-banner:hover .ub-arrow { transform: translateX(3px); }
+
+/* ── 데스크톱 전용 섹션 ── */
+.desk-only { display: none; }
+
+/* ── 납부 처리 / 미납 처리 버튼 ── */
+.btn-xs {
+  padding: 4px 10px; font-size: .73rem; font-weight: 700;
+  border-radius: 6px; line-height: 1.4; white-space: nowrap;
+  border: none; cursor: pointer; transition: all var(--tr);
+}
+.btn-fee-pay {
+  background: linear-gradient(135deg, var(--green), #16a34a);
+  color: var(--white);
+}
+.btn-fee-pay:hover {
+  filter: brightness(1.1); transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(21,128,61,.35);
+}
+.btn-fee-revert {
+  background: var(--gr100); color: var(--gr600); border: 1px solid var(--gr200);
+}
+.btn-fee-revert:hover {
+  background: var(--red-bg); color: var(--red); border-color: rgba(220,38,38,.3);
+}
+
+/* ── 반응형 추가 ── */
+@media (min-width: 901px) {
+  /* 데스크톱: 기수별 현황·도넛 차트 표시 */
+  .desk-only { display: grid; }
+}
+
+@media (max-width: 900px) {
+  .quick-grid { grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .quick-btn  { padding: 14px 6px; }
+  .qb-icon    { font-size: 1.35rem; }
+  .qb-label   { font-size: .68rem; }
+  .mini-stat-row { gap: 8px; }
+  .ms-num     { font-size: 1.45rem; }
+}
+
+@media (max-width: 600px) {
+  .quick-grid { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .quick-btn  { padding: 12px 4px; gap: 5px; }
+  .qb-icon    { font-size: 1.2rem; }
+  .qb-label   { font-size: .62rem; }
+  .mini-stat  { padding: 12px 10px; }
+  .ms-num     { font-size: 1.3rem; }
+  .ms-label   { font-size: .67rem; }
+  .unpaid-banner { padding: 12px 14px; }
+  .ub-desc    { font-size: .73rem; }
+  .notice-item { padding: 10px 12px; }
+  .upcoming-card { padding: 12px 14px; }
+  .dash-greeting h2 { font-size: 1.1rem; }
+}
