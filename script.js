@@ -1,14 +1,10 @@
 /**
  * J_LAB 회원관리 v2.0 — script.js
  * GitHub Pages SPA | Apps Script API 연동
- * ─────────────────────────────────────────
- * 페이지: 대시보드 / 회원관리 / 회비관리 / 행사관리 / 미납자추출
+ * 페이지: 대시보드 / 회원관리 / 회비관리 / 행사관리 / 회비 미납 현황
  */
 'use strict';
 
-/* ═══════════════════════════════════════════
-   ① 전역 상태
-═══════════════════════════════════════════ */
 var CFG = window.JLAB_CONFIG || {};
 
 var S = {
@@ -23,9 +19,6 @@ var S = {
   filters     : { q:'', filter:'all', gradYear:'', region:'' }
 };
 
-/* ═══════════════════════════════════════════
-   ② API 호출
-═══════════════════════════════════════════ */
 var API = {
   call: function(params) {
     var url = CFG.API_URL || '';
@@ -47,9 +40,6 @@ var API = {
   attend  : function(id) { return API.call({ action:'getEventAttendance', eventId:id }); }
 };
 
-/* ═══════════════════════════════════════════
-   ③ 유틸 함수
-═══════════════════════════════════════════ */
 function esc(s) {
   if (s === null || s === undefined) return '';
   return String(s)
@@ -57,7 +47,6 @@ function esc(s) {
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 function isFeeY(v) { var s=String(v||'').trim().toLowerCase(); return s==='y'||s==='납부'||s==='완료'||s==='1'||s==='true'; }
-function isGolfY(v){ var s=String(v||'').trim().toLowerCase(); return s==='y'||s==='참여'||s==='1'||s==='true'; }
 function isAttnY(v){ var s=String(v||'').trim().toLowerCase(); return s==='y'||s==='참석'||s==='1'||s==='true'; }
 function fmtPhone(p) {
   if (!p) return '';
@@ -66,7 +55,6 @@ function fmtPhone(p) {
 function fmtMoney(n) { return Number(n).toLocaleString('ko-KR') + '원'; }
 function initial(name) { return name ? String(name).charAt(0) : 'J'; }
 function feeBadge(v)  { return isFeeY(v)  ? '<span class="badge b-paid">✓ 납부</span>'  : '<span class="badge b-unpaid">✗ 미납</span>'; }
-function golfBadge(v) { return isGolfY(v) ? '<span class="badge b-golf">⛳ 참여</span>'  : '<span class="badge b-no">— 미참</span>'; }
 function attnBadge(v) { return isAttnY(v) ? '<span class="badge b-attend">✓ 참석</span>': '<span class="badge b-absent">✗ 불참</span>'; }
 function numAnim(el, target) {
   if (!el) return;
@@ -80,9 +68,6 @@ function numAnim(el, target) {
   });
 }
 
-/* ═══════════════════════════════════════════
-   ④ Toast
-═══════════════════════════════════════════ */
 var _tt;
 function toast(msg, type) {
   var el=document.getElementById('toast'); if(!el) return;
@@ -90,9 +75,6 @@ function toast(msg, type) {
   clearTimeout(_tt); _tt=setTimeout(function(){ el.className=''; },3000);
 }
 
-/* ═══════════════════════════════════════════
-   ⑤ 콘텐츠 헬퍼
-═══════════════════════════════════════════ */
 function $id(id){ return document.getElementById(id); }
 function setContent(html){ $id('content').innerHTML = html; }
 function setLoading(){
@@ -113,28 +95,23 @@ function errHtml(msg){
     '<div class="empty-desc" style="margin-top:8px">config.js의 API_URL을 확인하세요.</div></div>';
 }
 
-/* ═══════════════════════════════════════════
-   ⑥ Router
-═══════════════════════════════════════════ */
 var PAGE_INFO = {
-  dashboard : { title:'대시보드',    bc:'홈 / 대시보드' },
-  members   : { title:'회원관리',    bc:'홈 / 회원관리' },
-  fees      : { title:'회비관리',    bc:'홈 / 회비관리' },
-  events    : { title:'행사관리',    bc:'홈 / 행사관리' },
-  unpaid    : { title:'미납자 추출', bc:'홈 / 미납자 추출' }
+  dashboard : { title:'대시보드',       bc:'홈 / 대시보드' },
+  members   : { title:'회원관리',       bc:'홈 / 회원관리' },
+  fees      : { title:'회비관리',       bc:'홈 / 회비관리' },
+  events    : { title:'행사관리',       bc:'홈 / 행사관리' },
+  unpaid    : { title:'회비 미납 현황', bc:'홈 / 회비 미납 현황' }
 };
 
 function navigate(page) {
   S.page = page;
   var info = PAGE_INFO[page] || { title:page, bc:'홈 / '+page };
-  // 헤더 업데이트
   var titleEl = $id('pageTitle'); if(titleEl) titleEl.textContent = info.title;
   var bcEl    = $id('pageBc');    if(bcEl)    bcEl.textContent    = info.bc;
-  // 사이드바 활성화
+
   document.querySelectorAll('.nav-item').forEach(function(el){
     el.classList.toggle('active', el.getAttribute('data-page')===page);
   });
-  // 하단 탭 활성화
   document.querySelectorAll('.bnav-item').forEach(function(el){
     el.classList.toggle('active', el.getAttribute('data-page')===page);
   });
@@ -148,9 +125,6 @@ function renderPage(page) {
   if (map[page]) map[page]();
 }
 
-/* ═══════════════════════════════════════════
-   ⑦ 대시보드
-═══════════════════════════════════════════ */
 function renderDashboard() {
   API.dash().then(function(d) {
     if (!d.success) { setContent(errHtml(d.error)); return; }
@@ -178,7 +152,6 @@ function renderDashboard() {
         sCard('sc-total', '👥','totalN', d.total,     '명','총 회원수','') +
         sCard('sc-paid',  '✅','paidN',  d.feePaid,   '명','회비 납부','납부율 '+pct+'%') +
         sCard('sc-unpaid','⚠️','unpN',   d.feeUnpaid, '명','회비 미납','즉시 확인 필요') +
-        sCard('sc-golf',  '⛳','golfN',  d.golfCount, '명','골프 참여','') +
       '</div>' +
 
       '<div class="dash-row">' +
@@ -211,7 +184,6 @@ function renderDashboard() {
     numAnim($id('totalN'), d.total);
     numAnim($id('paidN'),  d.feePaid);
     numAnim($id('unpN'),   d.feeUnpaid);
-    numAnim($id('golfN'),  d.golfCount);
   }).catch(function(e){ setContent(errHtml(e.message)); });
 }
 
@@ -224,9 +196,6 @@ function sCard(cls, icon, numId, num, unit, label, sub) {
   '</div>';
 }
 
-/* ═══════════════════════════════════════════
-   ⑧ 회원관리
-═══════════════════════════════════════════ */
 function renderMembers() {
   Promise.all([
     S.gradYears.length ? Promise.resolve({success:true,years:S.gradYears}) : API.grads(),
@@ -260,7 +229,7 @@ function buildMembersPage() {
     '</div>' +
     '<div class="ctrl-bar" style="padding-top:10px;padding-bottom:10px">' +
       '<div class="ftabs" id="ftabs">' +
-        ftab('all','전체') + ftab('feePaid','✅ 납부') + ftab('feeUnpaid','⚠️ 미납') + ftab('golf','⛳ 골프') +
+        ftab('all','전체') + ftab('feePaid','✅ 납부') + ftab('feeUnpaid','⚠️ 미납') +
       '</div>' +
     '</div>' +
     '<div class="tbl-card">' +
@@ -268,13 +237,12 @@ function buildMembersPage() {
       '<div class="tbl-scroll">' +
         '<table><thead><tr>' +
           '<th>이름</th><th>기수</th><th>연락처</th><th>이메일</th>' +
-          '<th>현소속</th><th class="th-gold">회비</th><th class="th-gold">골프</th><th style="text-align:center">상세</th>' +
+          '<th>현소속</th><th class="th-gold">회비</th><th style="text-align:center">상세</th>' +
         '</tr></thead><tbody id="mTbody">'+ilLoad()+'</tbody></table>' +
       '</div>' +
     '</div>'
   );
 
-  /* 이벤트 */
   var timer;
   var si = $id('searchInput');
   if(si) si.addEventListener('input', function(){
@@ -314,16 +282,12 @@ function loadMemberTable() {
           '<td><span class="truncate" title="'+esc(m.email)+'">'+em+'</span></td>'+
           '<td><span class="truncate" title="'+esc(m.org)+'">'+esc(m.org||'—')+'</span></td>'+
           '<td>'+feeBadge(m.feePaid)+'</td>'+
-          '<td>'+golfBadge(m.golf)+'</td>'+
           '<td class="td-c"><button class="btn btn-primary btn-sm" onclick="openModal('+m.rowIndex+')">상세보기</button></td>'+
         '</tr>';
       }).join('');
     }).catch(function(e){ if(tbody) tbody.innerHTML=tblEmpty(e.message); });
 }
 
-/* ═══════════════════════════════════════════
-   ⑨ 회비관리
-═══════════════════════════════════════════ */
 function renderFees() {
   API.members({ filter:'all', q:'', gradYear:'', region:'' }).then(function(d){
     if(!d.success){ setContent(errHtml(d.error)); return; }
@@ -386,9 +350,6 @@ function renderFees() {
   }).catch(function(e){ setContent(errHtml(e.message)); });
 }
 
-/* ═══════════════════════════════════════════
-   ⑩ 행사관리
-═══════════════════════════════════════════ */
 function renderEvents() {
   API.events().then(function(d){
     S.events=(d.success&&d.events)?d.events:[];
@@ -463,9 +424,6 @@ function loadAttend(eventId, eventName) {
   }).catch(function(e){ sec.innerHTML='<div style="padding:16px;color:var(--red)">'+esc(e.message)+'</div>'; });
 }
 
-/* ═══════════════════════════════════════════
-   ⑪ 미납자 추출
-═══════════════════════════════════════════ */
 function renderUnpaid() {
   API.unpaid().then(function(d){
     if(!d.success){ setContent(errHtml(d.error)); return; }
@@ -475,7 +433,7 @@ function renderUnpaid() {
 
     setContent(
       '<div class="prog-card">' +
-        '<div class="prog-title">⚠️ 미납자 현황</div>' +
+        '<div class="prog-title">⚠️ 회비 미납 현황</div>' +
         '<div class="prog-stats">' +
           '<div><div class="prog-main" style="color:#fca5a5">'+S.unpaid.length+'<span class="prog-unit" style="color:#f87171">명</span></div></div>' +
           '<div class="prog-detail">회비 미납 회원 목록입니다.<br/>' +
@@ -485,7 +443,7 @@ function renderUnpaid() {
       '</div>' +
 
       '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">' +
-        '<div style="flex:1;font-size:.85rem;color:var(--gr600)">미납자 <strong>'+S.unpaid.length+'명</strong>' +
+        '<div style="flex:1;font-size:.85rem;color:var(--gr600)">미납 회원 <strong>'+S.unpaid.length+'명</strong>' +
           (fee?' · 미수 예상 <span style="color:var(--g600);font-weight:700">'+fmtMoney(totalAmt)+'</span>':'') +
         '</div>' +
         '<button class="btn btn-gold btn-sm" onclick="exportCSV()">📥 CSV 다운로드</button>' +
@@ -493,7 +451,7 @@ function renderUnpaid() {
       '</div>' +
 
       '<div class="tbl-card">' +
-        '<div class="tbl-hdr"><span class="tbl-hdr-title">⚠️ 미납자 목록</span><span class="res-badge">'+S.unpaid.length+'명</span></div>' +
+        '<div class="tbl-hdr"><span class="tbl-hdr-title">⚠️ 회비 미납 회원 목록</span><span class="res-badge">'+S.unpaid.length+'명</span></div>' +
         '<div class="tbl-scroll"><table>' +
           '<thead><tr><th>이름</th><th>기수</th><th>연락처</th><th>이메일</th><th>현소속</th><th>주소</th><th style="text-align:center">상세</th></tr></thead>' +
           '<tbody>' +
@@ -507,7 +465,7 @@ function renderUnpaid() {
                     '<td><span class="truncate">'+esc(m.address||'—')+'</span></td>' +
                     '<td class="td-c"><button class="btn btn-primary btn-sm" onclick="openModal('+m.rowIndex+')">상세</button></td></tr>';
                 }).join('')
-              : tblEmpty('🎉 미납자가 없습니다')
+              : tblEmpty('🎉 회비 미납 회원이 없습니다')
             ) +
           '</tbody>' +
         '</table></div>' +
@@ -517,7 +475,7 @@ function renderUnpaid() {
 }
 
 function exportCSV() {
-  if(!S.unpaid.length){ toast('미납자 데이터가 없습니다','err'); return; }
+  if(!S.unpaid.length){ toast('미납 회원 데이터가 없습니다','err'); return; }
   var hdr=['이름','기수','연락처','이메일','현소속','주소록'];
   var rows=S.unpaid.map(function(m){
     return [m.name,m.gradYear,fmtPhone(m.phone),m.email,m.org,m.address]
@@ -527,13 +485,13 @@ function exportCSV() {
   var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
-  a.href=url; a.download='JLAB_미납자_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.href=url; a.download='JLAB_회비미납회원_'+new Date().toISOString().slice(0,10)+'.csv';
   document.body.appendChild(a); a.click();
   document.body.removeChild(a); URL.revokeObjectURL(url);
   toast('CSV 다운로드 완료','ok');
 }
 function copyList() {
-  if(!S.unpaid.length){ toast('미납자 데이터가 없습니다','err'); return; }
+  if(!S.unpaid.length){ toast('미납 회원 데이터가 없습니다','err'); return; }
   var txt=S.unpaid.map(function(m,i){
     return (i+1)+'. '+(m.name||'—')+' ('+( m.gradYear||'—')+'년도) '+(m.phone?fmtPhone(m.phone):'—');
   }).join('\n');
@@ -542,9 +500,6 @@ function copyList() {
     .catch(function(){ toast('클립보드 복사 실패','err'); });
 }
 
-/* ═══════════════════════════════════════════
-   ⑫ 회원 상세 모달
-═══════════════════════════════════════════ */
 function openModal(rowIndex) {
   setModalLoad();
   $id('modalOverlay').classList.add('open');
@@ -575,7 +530,7 @@ function fillModal(m) {
     '<div class="modal-grid">' +
       mf('졸업연도',esc(m.gradYear)||'—') + mf('현소속',esc(m.org)||'—') +
       mf('연락처',ph) + mf('이메일',em,true) +
-      mf('회비납부',feeBadge(m.feePaid)) + mf('골프참여',golfBadge(m.golf)) +
+      mf('회비납부',feeBadge(m.feePaid)) +
     '</div>' +
     '<div class="modal-sec-lbl">추가 정보</div>' +
     '<div class="modal-grid">' +
@@ -589,26 +544,15 @@ function mf(lbl,valHtml,full){
   return '<div class="'+(full?'m-fl':'')+'"><div class="mf-lbl">'+lbl+'</div><div class="mf-val">'+valHtml+'</div></div>';
 }
 
-/* ═══════════════════════════════════════════
-   ⑬ 사이드바 (모바일)
-═══════════════════════════════════════════ */
 function openSidebar()  { $id('sidebar').classList.add('open'); $id('sidebarOverlay').classList.add('open'); document.body.style.overflow='hidden'; }
 function closeSidebar() { $id('sidebar').classList.remove('open'); $id('sidebarOverlay').classList.remove('open'); document.body.style.overflow=''; }
 
-/* ═══════════════════════════════════════════
-   ⑭ 동기화 상태
-═══════════════════════════════════════════ */
 function setSyncText() {
   var t=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
   var el=$id('syncText'); if(el) el.textContent='동기화: '+t;
 }
 
-/* ═══════════════════════════════════════════
-   ⑮ 초기화
-═══════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', function() {
-
-  /* 조직 정보 적용 */
   var name=CFG.ORG_NAME||'J_LAB';
   var sub =CFG.ORG_SUB ||'회원관리 시스템';
   ['brandOrgName','headerOrgPill'].forEach(function(id){ var el=$id(id); if(el) el.textContent=name; });
@@ -616,32 +560,26 @@ document.addEventListener('DOMContentLoaded', function() {
   var logoEl=$id('brandLogoText'); if(logoEl) logoEl.textContent=(name||'J').charAt(0);
   document.title=name+' 회원관리';
 
-  /* 네비게이션 */
   document.querySelectorAll('[data-page]').forEach(function(btn){
     btn.addEventListener('click',function(){ navigate(this.getAttribute('data-page')); });
   });
 
-  /* 햄버거 & 오버레이 */
   var mt=$id('menuToggle'); if(mt) mt.addEventListener('click',openSidebar);
   var so=$id('sidebarOverlay'); if(so) so.addEventListener('click',closeSidebar);
 
-  /* 새로고침 */
   var rb=$id('btnRefresh');
   if(rb) rb.addEventListener('click',function(){
     S.dashboard=null; S.members=[]; S.gradYears=[]; S.regions=[]; S.events=[];
     toast('새로고침 중...'); renderPage(S.page);
   });
 
-  /* 모달 닫기 */
   $id('modalClose').addEventListener('click',closeModal);
   $id('modalOverlay').addEventListener('click',function(e){ if(e.target===this) closeModal(); });
   document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeModal(); });
 
-  /* PWA 서비스워커 */
   if('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').catch(function(){});
   }
 
-  /* 첫 페이지 */
   navigate('dashboard');
 });
