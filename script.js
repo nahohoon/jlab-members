@@ -1,19 +1,17 @@
 /**
- * J_LAB 회원관리 v3.0 — script.js
+ * J_LAB 회원관리 v4.0 — script.js
  * GitHub Pages SPA | Apps Script API 연동
- * ─────────────────────────────────────────
- * 기반: GitHub 최신본 (2025-04-24 기준)
- * v3 추가:
- *   대시보드 개선 (공지사항·다가오는행사·빠른실행·미니카드·미납배너)
- *   회비 납부 상태 버튼 저장 (updateFeeStatus doPost)
- *   행사 참석/납부 저장 버튼 (updateEventAttend doPost)
- *   공지사항 조회 (getNotices)
+ * ─────────────────────────────────────────────────────────────────
+ * v4 추가:
+ *   [1] 행사 상세 운영 화면 (3상태 참석/납부 체크, EVENT_ATTEND_V2 연동)
+ *   [2] 찬조 감사 LED 전광판 (대시보드 상단, SPONSOR_NOTICE 연동)
+ *   [3] 찬조 문구 등록 모달 (2순위 기능)
+ *   [4] 기존 모든 기능 유지
  */
 'use strict';
 
 /* ─── 전역 상태 ──────────────────────────────── */
 var CFG = window.JLAB_CONFIG || {};
-
 var S = {
   page        : 'dashboard',
   dashboard   : null,
@@ -24,6 +22,8 @@ var S = {
   unpaid      : [],
   eventAttend : [],
   notices     : [],
+  sponsorNotices: [],
+  currentEvent: null,         // { id, name, date, venue }
   filters     : { q:'', filter:'all', gradYear:'', region:'' }
 };
 
@@ -48,19 +48,32 @@ var API = {
       body: JSON.stringify(body)
     }).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); });
   },
-  dash    : function()   { return API.call({ action:'getDashboard' }); },
-  members : function(p)  { return API.call(Object.assign({ action:'getMembers' }, p)); },
-  detail  : function(ri) { return API.call({ action:'getMemberDetail', rowIndex:ri }); },
-  grads   : function()   { return API.call({ action:'getGradYears' }); },
-  regions : function()   { return API.call({ action:'getRegions' }); },
-  unpaid  : function()   { return API.call({ action:'getUnpaidMembers' }); },
-  events  : function()   { return API.call({ action:'getEventList' }); },
-  attend  : function(id) { return API.call({ action:'getEventAttendance', eventId:id }); },
-  notices : function(n)  { return API.call({ action:'getNotices', limit:n||5 }); },
-  /* 쓰기 */
-  saveFee           : function(rowIndex, value) { return API.post({ action:'updateFeeStatus', rowIndex:rowIndex, value:value }); },
-  saveEventAttend   : function(rowIndex, col, value) { return API.post({ action:'updateEventAttend', rowIndex:rowIndex, col:col, value:value }); },
-  addEventAttend    : function(body) { return API.post(Object.assign({ action:'addEventAttend' }, body)); }
+
+  /* GET */
+  dash    : function()    { return API.call({ action:'getDashboard' }); },
+  members : function(p)   { return API.call(Object.assign({ action:'getMembers' }, p)); },
+  detail  : function(ri)  { return API.call({ action:'getMemberDetail', rowIndex:ri }); },
+  grads   : function()    { return API.call({ action:'getGradYears' }); },
+  regions : function()    { return API.call({ action:'getRegions' }); },
+  unpaid  : function()    { return API.call({ action:'getUnpaidMembers' }); },
+  events  : function()    { return API.call({ action:'getEventList' }); },
+  notices : function(n)   { return API.call({ action:'getNotices', limit:n||5 }); },
+
+  /* [신규] 행사 참석 */
+  getEventAttend      : function(eid) { return API.call({ action:'getEventAttend', event_id:eid }); },
+  getEventAttendSummary: function(eid){ return API.call({ action:'getEventAttendSummary', event_id:eid }); },
+  saveEventAttend     : function(data){ return API.post(Object.assign({ action:'saveEventAttend' }, data)); },
+
+  /* [신규] 찬조 전광판 */
+  getSponsorNotices   : function()    { return API.call({ action:'getSponsorNotices' }); },
+  saveSponsorNotice   : function(data){ return API.post(Object.assign({ action:'saveSponsorNotice' }, data)); },
+  updateSponsorNotice : function(data){ return API.post(Object.assign({ action:'updateSponsorNotice' }, data)); },
+
+  /* 기존 호환 */
+  attend          : function(id) { return API.call({ action:'getEventAttendance', eventId:id }); },
+  saveFee         : function(ri, val) { return API.post({ action:'updateFeeStatus', rowIndex:ri, value:val }); },
+  saveEventAttendLegacy: function(ri,col,val){ return API.post({ action:'updateEventAttend', rowIndex:ri, col:col, value:val }); },
+  addEventAttend  : function(body){ return API.post(Object.assign({ action:'addEventAttend' }, body)); }
 };
 
 /* ─── 유틸 ───────────────────────────────────── */
@@ -70,14 +83,26 @@ function esc(s) {
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
-function isFeeY(v)  { var s=String(v||'').trim().toLowerCase(); return s==='y'||s==='납부'||s==='완료'||s==='1'||s==='true'; }
-function isAttnY(v) { var s=String(v||'').trim().toLowerCase(); return s==='y'||s==='참석'||s==='1'||s==='true'; }
-function isImpY(v)  { var s=String(v||'').trim().toLowerCase(); return s==='y'||s==='중요'||s==='1'||s==='true'; }
+function isFeeY(v) { var s=String(v||'').trim().toLowerCase(); return s==='y'||s==='납부'||s==='완료'||s==='1'||s==='true'; }
+function isAttnY(v){ var s=String(v||'').trim().toLowerCase(); return s==='y'||s==='참석'||s==='1'||s==='true'; }
+function isImpY(v) { var s=String(v||'').trim().toLowerCase(); return s==='y'||s==='중요'||s==='1'||s==='true'; }
 function fmtPhone(p){ if(!p) return ''; return String(p).replace(/[^0-9]/g,'').replace(/^(\d{2,3})(\d{3,4})(\d{4})$/,'$1-$2-$3'); }
 function fmtMoney(n){ return Number(n).toLocaleString('ko-KR')+'원'; }
 function initial(name){ return name ? String(name).charAt(0) : 'J'; }
 function feeBadge(v){ return isFeeY(v) ? '<span class="badge b-paid">✓ 납부</span>' : '<span class="badge b-unpaid">✗ 미납</span>'; }
 function attnBadge(v){ return isAttnY(v) ? '<span class="badge b-attend">✓ 참석</span>' : '<span class="badge b-absent">✗ 불참</span>'; }
+
+/* 3상태 뱃지 */
+function attendStatusBadge(s) {
+  if (s==='참석') return '<span class="badge b-attend">✓ 참석</span>';
+  if (s==='불참') return '<span class="badge b-absent">✗ 불참</span>';
+  return '<span class="badge b-undecided">? 미정</span>';
+}
+function payStatusBadge(s) {
+  if (s==='납부') return '<span class="badge b-paid">✓ 납부</span>';
+  if (s==='면제') return '<span class="badge b-exempt">◎ 면제</span>';
+  return '<span class="badge b-unpaid">✗ 미납</span>';
+}
 
 function parseEventDate(s) {
   if (!s) return null;
@@ -86,33 +111,18 @@ function parseEventDate(s) {
   return isNaN(d.getTime()) ? null : d;
 }
 function dDayTag(dateStr) {
-  var d = parseEventDate(dateStr);
-  if (!d) return '';
+  var d = parseEventDate(dateStr); if (!d) return '';
   var diff = Math.ceil((d.setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000);
   if (diff === 0) return '<span class="day-tag day-today">오늘</span>';
   if (diff > 0)  return '<span class="day-tag day-coming">D-'+diff+'</span>';
   return '<span class="day-tag day-past">종료</span>';
 }
-
-function numAnim(el, target) {
-  if (!el) return;
-  var t0=null, dur=680;
-  requestAnimationFrame(function step(ts){
-    if(!t0) t0=ts;
-    var p=Math.min((ts-t0)/dur,1);
-    el.textContent=Math.round(p*target);
-    if(p<1) requestAnimationFrame(step);
-    else el.textContent=target;
-  });
-}
-
 var _tt;
 function toast(msg, type) {
   var el=document.getElementById('toast'); if(!el) return;
   el.textContent=msg; el.className='show'+(type?' t-'+type:'');
   clearTimeout(_tt); _tt=setTimeout(function(){ el.className=''; },3000);
 }
-
 function $id(id){ return document.getElementById(id); }
 function setContent(html){ $id('content').innerHTML = html; }
 function setLoading(){ setContent('<div class="pg-loading"><div class="pg-spinner"></div><p class="pg-loading-txt">데이터를 불러오는 중...</p></div>'); }
@@ -122,19 +132,23 @@ function errHtml(msg){ return '<div class="empty" style="padding:60px 20px"><div
 
 /* ─── Router ─────────────────────────────────── */
 var PAGE_INFO = {
-  dashboard : { title:'대시보드',       bc:'홈 / 대시보드' },
-  members   : { title:'회원관리',       bc:'홈 / 회원관리' },
-  fees      : { title:'회비관리',       bc:'홈 / 회비관리' },
-  events    : { title:'행사관리',       bc:'홈 / 행사관리' },
+  dashboard : { title:'대시보드',      bc:'홈 / 대시보드' },
+  members   : { title:'회원관리',      bc:'홈 / 회원관리' },
+  fees      : { title:'회비관리',      bc:'홈 / 회비관리' },
+  events    : { title:'행사관리',      bc:'홈 / 행사관리' },
   unpaid    : { title:'회비 미납 현황', bc:'홈 / 회비 미납 현황' }
 };
 function navigate(page) {
   S.page = page;
   var info = PAGE_INFO[page] || { title:page, bc:'홈 / '+page };
   var titleEl=$id('pageTitle'); if(titleEl) titleEl.textContent=info.title;
-  var bcEl=$id('pageBc');       if(bcEl)    bcEl.textContent=info.bc;
-  document.querySelectorAll('.nav-item').forEach(function(el){ el.classList.toggle('active', el.getAttribute('data-page')===page); });
-  document.querySelectorAll('.bnav-item').forEach(function(el){ el.classList.toggle('active', el.getAttribute('data-page')===page); });
+  var bcEl=$id('pageBc');       if(bcEl)   bcEl.textContent=info.bc;
+  document.querySelectorAll('.nav-item').forEach(function(el){
+    el.classList.toggle('active', el.getAttribute('data-page')===page);
+  });
+  document.querySelectorAll('.bnav-item').forEach(function(el){
+    el.classList.toggle('active', el.getAttribute('data-page')===page);
+  });
   closeSidebar();
   renderPage(page);
 }
@@ -145,113 +159,171 @@ function renderPage(page) {
 }
 
 /* ═══════════════════════════════════════════════
-   대시보드 — 운영자 중심 재구성
-   ① 공지사항  ② 다가오는 행사
-   ③ 빠른 실행 버튼 ④ 운영 요약 미니 카드
-   ⑤ 회비 미납 배너
-   ⑥ 데스크톱 전용: 기수별 현황 + 도넛 차트
+   [v4] LED 전광판 — 찬조 감사
+═══════════════════════════════════════════════ */
+var _tickerTimer = null;
+var _tickerAnim  = null;
+
+function buildTicker(notices) {
+  // is_active=Y인 notice_message 배열
+  var msgs = notices
+    .filter(function(n){ return String(n.is_active||'').toUpperCase()==='Y'; })
+    .map(function(n){ return n.notice_message || ''; })
+    .filter(function(m){ return m.trim() !== ''; });
+
+  if (!msgs.length) return '';
+
+  // 여러 개를 구분자(★)로 연결
+  var combined = msgs.join('　　★　　');
+
+  return '<div id="sponsorTickerWrap" class="ticker-wrap">' +
+    '<div class="ticker-label">🎉 찬조 감사</div>' +
+    '<div class="ticker-track">' +
+    '<div id="tickerText" class="ticker-text">' + esc(combined) + '</div>' +
+    '</div>' +
+    '</div>';
+}
+
+function startTicker() {
+  var track = document.querySelector('.ticker-track');
+  var text  = $id('tickerText');
+  if (!track || !text) return;
+
+  // CSS 애니메이션 방식 — 텍스트 너비 측정 후 keyframe 주입
+  var textW = text.scrollWidth;
+  var trackW = track.clientWidth;
+  var totalDist = textW + trackW;
+  var speed = 80; // px/sec
+  var duration = Math.round(totalDist / speed);
+
+  // 스타일 주입
+  var styleId = 'ticker-keyframe-style';
+  var existing = document.getElementById(styleId);
+  if (existing) existing.remove();
+  var style = document.createElement('style');
+  style.id = styleId;
+  style.textContent =
+    '@keyframes tickerScroll {' +
+    '  0%   { transform: translateX(' + trackW + 'px); }' +
+    '  100% { transform: translateX(-' + textW + 'px); }' +
+    '}';
+  document.head.appendChild(style);
+
+  text.style.animation = 'tickerScroll ' + duration + 's linear infinite';
+}
+
+/* ═══════════════════════════════════════════════
+   대시보드
 ═══════════════════════════════════════════════ */
 function renderDashboard() {
   Promise.all([
     API.dash(),
-    API.notices(3).catch(function(){ return {success:true,notices:[]}; })
+    API.notices(3).catch(function(){ return {success:true,notices:[]}; }),
+    API.getSponsorNotices().catch(function(){ return {success:true,notices:[]}; })
   ])
   .then(function(res) {
     var d = res[0];
     if (!d.success) { setContent(errHtml(d.error)); return; }
     S.dashboard = d;
+
     var notices = (res[1].success && res[1].notices) ? res[1].notices : [];
+    var sponsorNotices = (res[2].success && res[2].notices) ? res[2].notices : [];
+    S.sponsorNotices = sponsorNotices;
+
     setSyncText();
 
-    var fee     = CFG.ANNUAL_FEE || 0;
-    var pct     = d.feeRate || 0;
+    var fee = CFG.ANNUAL_FEE || 0;
+    var pct = d.feeRate || 0;
     var upcoming = d.upcomingEvents || [];
 
-    /* ① 공지사항 */
+    /* ── LED 전광판 ── */
+    var tickerHtml = sponsorNotices.length ? buildTicker(sponsorNotices) : '';
+
+    /* ── 공지사항 ── */
     var noticeHtml = '';
     if (notices.length) {
       noticeHtml =
         '<div class="dash-sec-lbl">📢 공지사항</div>' +
         '<div class="notice-list">' +
-          notices.map(function(n) {
-            var imp = isImpY(n.important);
-            return '<div class="notice-item'+(imp?' notice-imp':'')+'">' +
-              (imp ? '<span class="notice-badge">중요</span>' : '') +
-              '<div class="notice-title">'+esc(n.title)+'</div>' +
-              (n.body ? '<div class="notice-body">'+esc(n.body)+'</div>' : '') +
-              '<div class="notice-date">'+esc(n.date)+'</div>' +
+        notices.map(function(n) {
+          var imp = isImpY(n.important);
+          return '<div class="notice-item'+(imp?' notice-imp':'')+'">' +
+            (imp ? '<span class="notice-badge">중요</span>' : '') +
+            '<div class="notice-title">'+esc(n.title)+'</div>' +
+            (n.body ? '<div class="notice-body">'+esc(n.body)+'</div>' : '') +
+            '<div class="notice-date">'+esc(n.date)+'</div>' +
             '</div>';
-          }).join('') +
+        }).join('') +
         '</div>';
     }
 
-    /* ② 다가오는 행사 */
+    /* ── 다가오는 행사 ── */
     var upcomingHtml;
     if (upcoming.length) {
       upcomingHtml =
         '<div class="upcoming-list">' +
-          upcoming.map(function(e) {
-            return '<div class="upcoming-card">' +
-              '<div class="uc-top">' +
-                '<div class="uc-name">'+esc(e.name)+'</div>' +
-                dDayTag(e.date) +
-              '</div>' +
-              '<div class="uc-meta">' +
-                (e.date  ? '<span><span class="uc-ico">🗓</span>'+esc(e.date)+'</span>'  : '') +
-                (e.venue ? '<span><span class="uc-ico">📍</span>'+esc(e.venue)+'</span>' : '') +
-                (e.fee   ? '<span><span class="uc-ico">💰</span>'+esc(e.fee)+'</span>'   : '') +
-              '</div>' +
-              (e.note ? '<div class="uc-note">📝 '+esc(e.note)+'</div>' : '') +
+        upcoming.map(function(e) {
+          return '<div class="upcoming-card">' +
+            '<div class="uc-top">' +
+            '<div class="uc-name">'+esc(e.name)+'</div>' +
+            dDayTag(e.date) +
+            '</div>' +
+            '<div class="uc-meta">' +
+            (e.date  ? '<span><span class="uc-ico">🗓</span>'+esc(e.date)+'</span>' : '') +
+            (e.venue ? '<span><span class="uc-ico">📍</span>'+esc(e.venue)+'</span>' : '') +
+            (e.fee   ? '<span><span class="uc-ico">💰</span>'+esc(e.fee)+'</span>' : '') +
+            '</div>' +
+            (e.note  ? '<div class="uc-note">📝 '+esc(e.note)+'</div>' : '') +
             '</div>';
-          }).join('') +
+        }).join('') +
         '</div>';
     } else {
       upcomingHtml =
         '<div class="upcoming-empty">' +
-          '<span style="font-size:1.4rem">📅</span>' +
-          '<span>예정된 행사가 없습니다<br/>' +
-            '<span style="font-size:.75rem;color:var(--gr400)">EVENT_MASTER 시트에 행사를 등록하세요</span>' +
-          '</span>' +
+        '<span style="font-size:1.4rem">📅</span>' +
+        '<span>예정된 행사가 없습니다<br/>' +
+        '<span style="font-size:.75rem;color:var(--gr400)">EVENT_MASTER 시트에 행사를 등록하세요</span>' +
+        '</span>' +
         '</div>';
     }
 
-    /* ③ 빠른 실행 버튼 */
+    /* ── 빠른 실행 ── */
     var quickHtml =
       '<div class="quick-grid">' +
-        qBtn('👥','회원 검색','members') +
-        qBtn('📅','행사 관리','events')  +
-        qBtn('💰','회비 관리','fees')    +
-        qBtn('⚠️','미납 현황','unpaid')  +
+      qBtn('👥','회원 검색','members') +
+      qBtn('📅','행사 관리','events') +
+      qBtn('💰','회비 관리','fees') +
+      qBtn('⚠️','미납 현황','unpaid') +
       '</div>';
 
-    /* ④ 운영 요약 미니 카드 */
+    /* ── 미니 카드 ── */
     var miniHtml =
       '<div class="mini-stat-row">' +
-        mStat('총 회원수',  d.total,     '명', 'ms-total')  +
-        mStat('회비 납부',  d.feePaid,   '명', 'ms-paid')   +
-        mStat('회비 미납',  d.feeUnpaid, '명', 'ms-unpaid') +
+      mStat('총 회원수', d.total,      '명', 'ms-total') +
+      mStat('회비 납부', d.feePaid,    '명', 'ms-paid') +
+      mStat('회비 미납', d.feeUnpaid,  '명', 'ms-unpaid') +
       '</div>';
 
-    /* ⑤ 미납 배너 */
+    /* ── 미납 배너 ── */
     var unpaidBanner =
       '<div class="unpaid-banner" onclick="navigate(\'unpaid\')" role="button" tabindex="0">' +
-        '<div class="ub-left">' +
-          '<div class="ub-dot"></div>' +
-          '<div>' +
-            '<div class="ub-title">⚠️ 회비 미납 현황</div>' +
-            '<div class="ub-desc">미납자 <strong>'+d.feeUnpaid+'명</strong>' +
-              (fee ? ' &nbsp;·&nbsp; 예상 미수금 <strong>'+fmtMoney(d.feeUnpaid*fee)+'</strong>' : '') +
-            '</div>' +
-          '</div>' +
-        '</div>' +
-        '<div class="ub-arrow">›</div>' +
+      '<div class="ub-left">' +
+      '<div class="ub-dot"></div>' +
+      '<div>' +
+      '<div class="ub-title">⚠️ 회비 미납 현황</div>' +
+      '<div class="ub-desc">미납자 <strong>'+d.feeUnpaid+'명</strong>' +
+      (fee ? ' · 예상 미수금 <strong>'+fmtMoney(d.feeUnpaid*fee)+'</strong>' : '') +
+      '</div>' +
+      '</div>' +
+      '</div>' +
+      '<div class="ub-arrow">›</div>' +
       '</div>';
 
-    /* ⑥ 데스크톱 전용: 기수별 현황 + 도넛 */
-    var maxGrad=1;
+    /* ── 데스크톱: 기수별 바 + 도넛 ── */
+    var maxGrad = 1;
     (d.gradStats||[]).forEach(function(g){ if(g.count>maxGrad) maxGrad=g.count; });
-    var gradBars=(d.gradStats||[]).map(function(g){
-      var w=Math.round(g.count/maxGrad*100);
+    var gradBars = (d.gradStats||[]).map(function(g){
+      var w = Math.round(g.count/maxGrad*100);
       return '<div class="grad-bar-item">' +
         '<div class="grad-bar-yr">'+esc(g.year)+'</div>' +
         '<div class="grad-bar-track"><div class="grad-bar-fill" style="width:'+w+'%"></div></div>' +
@@ -260,35 +332,36 @@ function renderDashboard() {
 
     var desktopSection =
       '<div class="dash-row desk-only">' +
-        '<div class="card">' +
-          '<div class="card-hdr"><div class="card-title"><div class="card-icon">📊</div>기수별 회원 현황</div></div>' +
-          '<div class="card-body">'+(gradBars||'<div class="empty" style="padding:24px"><div class="empty-icon">📋</div><div class="empty-title">기수 데이터 없음</div></div>')+'</div>' +
-        '</div>' +
-        '<div class="card">' +
-          '<div class="card-hdr"><div class="card-title"><div class="card-icon">💰</div>회비 납부율</div></div>' +
-          '<div class="card-body">' +
-            '<div class="donut-wrap">' +
-              '<div class="donut-ring" style="--pct:'+pct+'%">' +
-                '<div class="donut-hole"><div class="donut-pct">'+pct+'<span style="font-size:.7rem">%</span></div><div class="donut-sub">납부율</div></div>' +
-              '</div>' +
-              '<div>' +
-                '<div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>납부: <strong style="margin-left:4px">'+d.feePaid+'명</strong></div>' +
-                '<div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>미납: <strong style="margin-left:4px">'+d.feeUnpaid+'명</strong></div>' +
-                '<div class="legend-item"><div class="legend-dot" style="background:var(--gr300)"></div>전체: <strong style="margin-left:4px">'+d.total+'명</strong></div>' +
-              '</div>' +
-            '</div>' +
-            '<div class="divider"></div>' +
-            '<div class="prog-bar-track" style="height:10px"><div class="prog-bar-fill" style="width:'+pct+'%"></div></div>' +
-          '</div>' +
-        '</div>' +
+      '<div class="card">' +
+      '<div class="card-hdr"><div class="card-title"><div class="card-icon">📊</div>기수별 회원 현황</div></div>' +
+      '<div class="card-body">'+(gradBars||'<div class="empty" style="padding:24px"><div class="empty-icon">📋</div><div class="empty-title">기수 데이터 없음</div></div>')+'</div>' +
+      '</div>' +
+      '<div class="card">' +
+      '<div class="card-hdr"><div class="card-title"><div class="card-icon">💰</div>회비 납부율</div></div>' +
+      '<div class="card-body">' +
+      '<div class="donut-wrap">' +
+      '<div class="donut-ring" style="--pct:'+pct+'%">' +
+      '<div class="donut-hole"><div class="donut-pct">'+pct+'<span style="font-size:.7rem">%</span></div><div class="donut-sub">납부율</div></div>' +
+      '</div>' +
+      '<div>' +
+      '<div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>납부: <strong style="margin-left:4px">'+d.feePaid+'명</strong></div>' +
+      '<div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>미납: <strong style="margin-left:4px">'+d.feeUnpaid+'명</strong></div>' +
+      '<div class="legend-item"><div class="legend-dot" style="background:var(--gr300)"></div>전체: <strong style="margin-left:4px">'+d.total+'명</strong></div>' +
+      '</div>' +
+      '</div>' +
+      '<div class="divider"></div>' +
+      '<div class="prog-bar-track" style="height:10px"><div class="prog-bar-fill" style="width:'+pct+'%"></div></div>' +
+      '</div>' +
+      '</div>' +
       '</div>';
 
-    /* 최종 렌더 */
+    /* ── 최종 렌더 ── */
     setContent(
       '<div class="dash-greeting">' +
-        '<h2>안녕하세요, <span class="dash-org">'+esc(CFG.ORG_NAME||'J_LAB')+'</span></h2>' +
-        '<p>오늘의 운영 현황입니다.</p>' +
+      '<h2>안녕하세요, <span class="dash-org">'+esc(CFG.ORG_NAME||'J_LAB')+'</span></h2>' +
+      '<p>오늘의 운영 현황입니다.</p>' +
       '</div>' +
+      tickerHtml +
       noticeHtml +
       '<div class="dash-sec-lbl">📅 다가오는 행사</div>' + upcomingHtml +
       '<div class="dash-sec-lbl" style="margin-top:22px">⚡ 빠른 실행</div>' + quickHtml +
@@ -296,6 +369,11 @@ function renderDashboard() {
       unpaidBanner +
       desktopSection
     );
+
+    // 전광판 애니메이션 시작
+    if (sponsorNotices.length) {
+      setTimeout(startTicker, 100);
+    }
   })
   .catch(function(e){ setContent(errHtml(e.message)); });
 }
@@ -308,19 +386,11 @@ function mStat(label, num, unit, cls) {
   return '<div class="mini-stat '+cls+'">' +
     '<div class="ms-num">'+num+'<span class="ms-unit">'+unit+'</span></div>' +
     '<div class="ms-label">'+label+'</div>' +
-  '</div>';
-}
-function sCard(cls, icon, numId, num, unit, label, sub) {
-  return '<div class="stat-card '+cls+'">' +
-    '<div class="stat-icon">'+icon+'</div>' +
-    '<div class="stat-num"><span id="'+numId+'">'+num+'</span><span class="stat-unit">'+unit+'</span></div>' +
-    '<div class="stat-label">'+label+'</div>' +
-    (sub?'<div class="stat-sub">'+esc(sub)+'</div>':'') +
-  '</div>';
+    '</div>';
 }
 
 /* ═══════════════════════════════════════════════
-   회원관리
+   회원관리 (기존 유지)
 ═══════════════════════════════════════════════ */
 function renderMembers() {
   Promise.all([
@@ -333,51 +403,61 @@ function renderMembers() {
     loadMemberTable();
   }).catch(function(e){ setContent(errHtml(e.message)); });
 }
+
 function buildMembersPage() {
-  var gOpts='<option value="">전체 기수</option>'+
-    S.gradYears.map(function(y){ return '<option value="'+esc(y)+'"'+(S.filters.gradYear===y?' selected':'')+'>'+esc(y)+'년도</option>'; }).join('');
-  var rOpts='<option value="">전체 지역</option>'+
-    S.regions.map(function(r){ return '<option value="'+esc(r)+'"'+(S.filters.region===r?' selected':'')+'>'+esc(r)+'</option>'; }).join('');
+  var gOpts = '<option value="">전체 기수</option>' +
+    S.gradYears.map(function(y){
+      return '<option value="'+esc(y)+'"'+(S.filters.gradYear===y?' selected':'')+'>'+esc(y)+'년도</option>';
+    }).join('');
+  var rOpts = '<option value="">전체 지역</option>' +
+    S.regions.map(function(r){
+      return '<option value="'+esc(r)+'"'+(S.filters.region===r?' selected':'')+'>'+esc(r)+'</option>';
+    }).join('');
 
   setContent(
     '<div class="ctrl-bar">' +
-      '<div class="search-wrap">' +
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>' +
-        '<input id="searchInput" class="search-input" type="text" placeholder="이름, 연락처, 이메일, 소속, 특이사항 검색..." value="'+esc(S.filters.q)+'" autocomplete="off"/>' +
-      '</div>' +
-      '<select id="filterGrad" class="filter-sel">'+gOpts+'</select>' +
-      '<select id="filterRegion" class="filter-sel">'+rOpts+'</select>' +
+    '<div class="search-wrap">' +
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>' +
+    '<input id="searchInput" class="search-input" type="text" placeholder="이름, 연락처, 이메일, 소속, 특이사항 검색..." value="'+esc(S.filters.q)+'" autocomplete="off"/>' +
+    '</div>' +
+    '<select id="filterGrad" class="filter-sel">'+gOpts+'</select>' +
+    '<select id="filterRegion" class="filter-sel">'+rOpts+'</select>' +
     '</div>' +
     '<div class="ctrl-bar" style="padding-top:10px;padding-bottom:10px">' +
-      '<div class="ftabs" id="ftabs">' +
-        ftab('all','전체') + ftab('feePaid','✅ 납부') + ftab('feeUnpaid','⚠️ 미납') +
-      '</div>' +
+    '<div class="ftabs" id="ftabs">' +
+    ftab('all','전체') + ftab('feePaid','✅ 납부') + ftab('feeUnpaid','⚠️ 미납') +
+    '</div>' +
     '</div>' +
     '<div class="tbl-card">' +
-      '<div class="tbl-hdr"><span class="tbl-hdr-title">📋 회원 목록</span><span class="res-badge" id="mCnt">로딩 중...</span></div>' +
-      '<div class="tbl-scroll">' +
-        '<table><thead><tr>' +
-          '<th>이름</th><th>기수</th><th>연락처</th><th>이메일</th>' +
-          '<th>현소속</th><th class="th-gold">회비</th><th style="text-align:center">상세</th>' +
-        '</tr></thead><tbody id="mTbody">'+ilLoad()+'</tbody></table>' +
-      '</div>' +
+    '<div class="tbl-hdr"><span class="tbl-hdr-title">📋 회원 목록</span><span class="res-badge" id="mCnt">로딩 중...</span></div>' +
+    '<div class="tbl-scroll">' +
+    '<table><thead><tr>' +
+    '<th>이름</th><th>기수</th><th>연락처</th><th>이메일</th>' +
+    '<th>현소속</th><th class="th-gold">회비</th><th style="text-align:center">상세</th>' +
+    '</tr></thead><tbody id="mTbody">'+ilLoad()+'</tbody></table>' +
+    '</div>' +
     '</div>'
   );
 
   var timer;
-  var si=$id('searchInput');
-  if(si) si.addEventListener('input',function(){ clearTimeout(timer); var v=this.value; timer=setTimeout(function(){ S.filters.q=v.trim(); loadMemberTable(); },380); });
-  var fg=$id('filterGrad'); if(fg) fg.addEventListener('change',function(){ S.filters.gradYear=this.value; loadMemberTable(); });
-  var fr=$id('filterRegion'); if(fr) fr.addEventListener('change',function(){ S.filters.region=this.value; loadMemberTable(); });
+  var si = $id('searchInput');
+  if(si) si.addEventListener('input',function(){
+    clearTimeout(timer); var v=this.value;
+    timer=setTimeout(function(){ S.filters.q=v.trim(); loadMemberTable(); },380);
+  });
+  var fg = $id('filterGrad'); if(fg) fg.addEventListener('change',function(){ S.filters.gradYear=this.value; loadMemberTable(); });
+  var fr = $id('filterRegion'); if(fr) fr.addEventListener('change',function(){ S.filters.region=this.value; loadMemberTable(); });
   document.querySelectorAll('#ftabs .ftab').forEach(function(btn){
     btn.addEventListener('click',function(){
-      S.filters.filter=this.getAttribute('data-f');
+      S.filters.filter = this.getAttribute('data-f');
       document.querySelectorAll('#ftabs .ftab').forEach(function(b){ b.classList.remove('active'); });
       this.classList.add('active'); loadMemberTable();
     });
   });
 }
+
 function ftab(v,lbl){ return '<button class="ftab'+(S.filters.filter===v?' active':'')+'" data-f="'+v+'">'+lbl+'</button>'; }
+
 function loadMemberTable() {
   var tbody=$id('mTbody'), cntEl=$id('mCnt');
   if(tbody) tbody.innerHTML=ilLoad();
@@ -399,13 +479,13 @@ function loadMemberTable() {
           '<td><span class="truncate" title="'+esc(m.org)+'">'+esc(m.org||'—')+'</span></td>'+
           '<td>'+feeBadge(m.feePaid)+'</td>'+
           '<td class="td-c"><button class="btn btn-primary btn-sm" onclick="openModal('+m.rowIndex+')">상세보기</button></td>'+
-        '</tr>';
+          '</tr>';
       }).join('');
     }).catch(function(e){ if(tbody) tbody.innerHTML=tblEmpty(e.message); });
 }
 
 /* ═══════════════════════════════════════════════
-   회비관리 — 납부 상태 버튼 저장 포함
+   회비관리 (기존 유지)
 ═══════════════════════════════════════════════ */
 function renderFees() {
   API.members({ filter:'all', q:'', gradYear:'', region:'' }).then(function(d){
@@ -415,6 +495,7 @@ function renderFees() {
     var unpd=all.filter(function(m){ return !isFeeY(m.feePaid); });
     var pct=all.length?Math.round(paid.length/all.length*100):0;
     var fee=CFG.ANNUAL_FEE||0;
+
     var gradMap={};
     all.forEach(function(m){
       var y=m.gradYear||'미상';
@@ -427,251 +508,421 @@ function renderFees() {
         '<td><span class="badge b-paid">'+g.paid+'명</span></td>'+
         '<td><span class="badge b-unpaid">'+g.unpaid+'명</span></td>'+
         '<td><div style="display:flex;align-items:center;gap:8px">'+
-          '<div class="grad-bar-track" style="width:80px"><div class="grad-bar-fill" style="width:'+p+'%"></div></div>'+
-          '<span style="font-size:.78rem;font-weight:700;color:var(--gr600)">'+p+'%</span></div></td></tr>';
+        '<div class="grad-bar-track" style="width:80px"><div class="grad-bar-fill" style="width:'+p+'%"></div></div>'+
+        '<span style="font-size:.78rem;font-weight:700;color:var(--gr600)">'+p+'%</span></div></td></tr>';
     }).join('');
 
     setContent(
       '<div class="prog-card">' +
-        '<div class="prog-title">연간 회비 납부 현황</div>' +
-        '<div class="prog-stats">' +
-          '<div><div class="prog-main"><span id="feeRN">'+pct+'</span><span class="prog-unit">%</span></div></div>' +
-          '<div class="prog-detail">납부 <strong style="color:var(--white)">'+paid.length+'명</strong> · ' +
-            '미납 <strong style="color:#fca5a5">'+unpd.length+'명</strong>' +
-            (fee?' · 미수금 <strong style="color:#fcd34d">'+fmtMoney(unpd.length*fee)+'</strong>':'')+
-          '</div>' +
-        '</div>' +
-        '<div class="prog-bar-track" style="height:12px"><div class="prog-bar-fill" style="width:'+pct+'%"></div></div>' +
+      '<div class="prog-title">연간 회비 납부 현황</div>' +
+      '<div class="prog-stats">' +
+      '<div><div class="prog-main"><span id="feeRN">'+pct+'</span><span class="prog-unit">%</span></div></div>' +
+      '<div class="prog-detail">납부 <strong style="color:var(--white)">'+paid.length+'명</strong> · ' +
+      '미납 <strong style="color:#fca5a5">'+unpd.length+'명</strong>' +
+      (fee?' · 미수금 <strong style="color:#fcd34d">'+fmtMoney(unpd.length*fee)+'</strong>':'')+
       '</div>' +
-
+      '</div>' +
+      '<div class="prog-bar-track" style="height:12px"><div class="prog-bar-fill" style="width:'+pct+'%"></div></div>' +
+      '</div>' +
       '<div class="card mb16">' +
-        '<div class="card-hdr"><div class="card-title"><div class="card-icon">📊</div>기수별 납부 현황</div></div>' +
-        '<div class="tbl-scroll"><table>' +
-          '<thead><tr><th>기수</th><th>전체</th><th class="th-gold">납부</th><th>미납</th><th>납부율</th></tr></thead>' +
-          '<tbody>'+(gradRows||tblEmpty('기수 데이터 없음'))+'</tbody>' +
-        '</table></div>' +
+      '<div class="card-hdr"><div class="card-title"><div class="card-icon">📊</div>기수별 납부 현황</div></div>' +
+      '<div class="tbl-scroll"><table>' +
+      '<thead><tr><th>기수</th><th>전체</th><th class="th-gold">납부</th><th>미납</th><th>납부율</th></tr></thead>' +
+      '<tbody>'+(gradRows||tblEmpty('기수 데이터 없음'))+'</tbody>' +
+      '</table></div>' +
       '</div>' +
-
       '<div class="tbl-card">' +
-        '<div class="tbl-hdr">' +
-          '<span class="tbl-hdr-title">💳 회원별 납부 현황</span>' +
-          '<span class="res-badge">'+all.length+'명</span>' +
-        '</div>' +
-        '<div class="tbl-scroll"><table>' +
-          '<thead><tr><th>이름</th><th>기수</th><th>현소속</th><th>연락처</th><th class="th-gold">납부상태</th><th style="text-align:center">변경</th></tr></thead>' +
-          '<tbody>' +
-            all.map(function(m){
-              var ph=m.phone?'<a class="lk-phone" href="tel:'+esc(m.phone)+'">'+esc(fmtPhone(m.phone))+'</a>':'—';
-              var curY=isFeeY(m.feePaid);
-              var toggleBtn=
-                '<button class="btn btn-xs '+(curY?'btn-fee-revert':'btn-fee-pay')+'" ' +
-                  'onclick="toggleFee(this,'+m.rowIndex+',\''+(curY?'N':'Y')+'\')">' +
-                  (curY?'↩ 미납처리':'✓ 납부처리') +
-                '</button>';
-              return '<tr id="fee-row-'+m.rowIndex+'">' +
-                '<td class="td-name">'+esc(m.name||'—')+'</td>' +
-                '<td class="td-num">'+esc(m.gradYear||'—')+'</td>' +
-                '<td><span class="truncate">'+esc(m.org||'—')+'</span></td>' +
-                '<td>'+ph+'</td>' +
-                '<td id="fee-badge-'+m.rowIndex+'">'+feeBadge(m.feePaid)+'</td>' +
-                '<td class="td-c">'+toggleBtn+'</td>' +
-              '</tr>';
-            }).join('') +
-          '</tbody>' +
-        '</table></div>' +
+      '<div class="tbl-hdr">' +
+      '<span class="tbl-hdr-title">💳 회원별 납부 현황</span>' +
+      '<span class="res-badge">'+all.length+'명</span>' +
+      '</div>' +
+      '<div class="tbl-scroll"><table>' +
+      '<thead><tr><th>이름</th><th>기수</th><th>현소속</th><th>연락처</th><th class="th-gold">납부상태</th><th style="text-align:center">변경</th></tr></thead>' +
+      '<tbody>' +
+      all.map(function(m){
+        var ph=m.phone?'<a class="lk-phone" href="tel:'+esc(m.phone)+'">'+esc(fmtPhone(m.phone))+'</a>':'—';
+        var curY=isFeeY(m.feePaid);
+        var toggleBtn=
+          '<button class="btn btn-xs '+(curY?'btn-fee-revert':'btn-fee-pay')+'" ' +
+          'onclick="toggleFee(this,'+m.rowIndex+',\''+(curY?'N':'Y')+'\')">' +
+          (curY?'↩ 미납처리':'✓ 납부처리') +
+          '</button>';
+        return '<tr id="fee-row-'+m.rowIndex+'">' +
+          '<td class="td-name">'+esc(m.name||'—')+'</td>' +
+          '<td class="td-num">'+esc(m.gradYear||'—')+'</td>' +
+          '<td><span class="truncate">'+esc(m.org||'—')+'</span></td>' +
+          '<td>'+ph+'</td>' +
+          '<td id="fee-badge-'+m.rowIndex+'">'+feeBadge(m.feePaid)+'</td>' +
+          '<td class="td-c">'+toggleBtn+'</td>' +
+          '</tr>';
+      }).join('') +
+      '</tbody>' +
+      '</table></div>' +
       '</div>'
     );
   }).catch(function(e){ setContent(errHtml(e.message)); });
 }
 
-/* 회비 납부 상태 토글 저장 */
 function toggleFee(btn, rowIndex, newVal) {
-  btn.disabled = true;
-  btn.textContent = '저장 중...';
+  btn.disabled = true; btn.textContent = '저장 중...';
   API.saveFee(rowIndex, newVal)
     .then(function(r) {
       if (!r.success) { toast('저장 실패: '+(r.error||''), 'err'); btn.disabled=false; btn.textContent=(newVal==='Y'?'✓ 납부처리':'↩ 미납처리'); return; }
       var badgeEl = $id('fee-badge-'+rowIndex);
       if (badgeEl) badgeEl.innerHTML = feeBadge(newVal==='Y'?'Y':'N');
-      btn.textContent  = (newVal==='Y' ? '↩ 미납처리' : '✓ 납부처리');
-      btn.className    = 'btn btn-xs '+(newVal==='Y' ? 'btn-fee-revert' : 'btn-fee-pay');
+      btn.textContent = (newVal==='Y' ? '↩ 미납처리' : '✓ 납부처리');
+      btn.className = 'btn btn-xs '+(newVal==='Y' ? 'btn-fee-revert' : 'btn-fee-pay');
       btn.setAttribute('onclick', 'toggleFee(this,'+rowIndex+',\''+(newVal==='Y'?'N':'Y')+'\')');
       btn.disabled = false;
       toast((newVal==='Y'?'납부 처리':'미납 처리')+'되었습니다.', 'ok');
-      S.dashboard = null; // 대시보드 캐시 초기화
+      S.dashboard = null;
     })
     .catch(function(e){ toast(e.message,'err'); btn.disabled=false; });
 }
 
 /* ═══════════════════════════════════════════════
-   행사관리 — 참석/납부 저장 버튼 포함
+   [v4] 행사관리 — 행사 목록 + 상세 운영 화면
 ═══════════════════════════════════════════════ */
 function renderEvents() {
   API.events().then(function(d){
-    S.events=(d.success&&d.events)?d.events:[];
+    S.events = (d.success && d.events) ? d.events : [];
     buildEventsPage();
   }).catch(function(e){ setContent(errHtml(e.message)); });
 }
+
 function buildEventsPage() {
-  var hasSheet=S.events.length>0;
-  var guide=!hasSheet?
+  var hasSheet = S.events.length > 0;
+  var guide = !hasSheet ?
     '<div class="notice-box"><div class="notice-box-title">📋 행사 시트 설정 안내</div>' +
     '<div class="notice-box-body">구글 시트에 <code>EVENT_MASTER</code> 시트를 추가하면 행사 목록이 자동 표시됩니다.<br/>' +
     '컬럼: <code>행사ID</code> · <code>행사명</code> · <code>행사일</code> · <code>장소</code> · <code>참가비</code> · <code>비고</code></div></div>' : '';
 
-  var cards=S.events.map(function(e){
-    return '<div class="event-card" onclick="loadAttend(\''+esc(e.id)+'\',\''+esc(e.name)+'\')">' +
+  var cards = S.events.map(function(e) {
+    return '<div class="event-card" onclick="openEventDetail(\''+esc(e.id)+'\',\''+esc(e.name)+'\',\''+esc(e.date)+'\',\''+esc(e.venue)+'\')">' +
       '<div class="ev-name">'+esc(e.name)+'</div>' +
       '<div class="ev-info">' +
-        (e.date ?'<span>📅 '+esc(e.date)+'</span>':'') +
-        (e.venue?'<span>📍 '+esc(e.venue)+'</span>':'') +
-        (e.fee  ?'<span>💰 '+esc(e.fee)+'</span>':'') +
-        (e.note ?'<span>📝 '+esc(e.note)+'</span>':'') +
+      (e.date  ? '<span>📅 '+esc(e.date)+'</span>'  : '') +
+      (e.venue ? '<span>📍 '+esc(e.venue)+'</span>' : '') +
+      (e.fee   ? '<span>💰 '+esc(e.fee)+'</span>'   : '') +
+      (e.note  ? '<span>📝 '+esc(e.note)+'</span>'  : '') +
       '</div>' +
-      '<div class="ev-foot"><span class="ev-id-badge">ID: '+esc(e.id)+'</span><span class="ev-view">참석 조회 →</span></div>' +
-    '</div>';
+      '<div class="ev-foot"><span class="ev-id-badge">ID: '+esc(e.id)+'</span><span class="ev-view">참석 관리 →</span></div>' +
+      '</div>';
   }).join('');
 
   setContent(
     guide +
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">' +
-      '<div style="font-size:.92rem;font-weight:700;color:var(--n800)">📅 행사 목록 ' +
-        '<span style="color:var(--gr400);font-weight:500;font-size:.8rem">'+S.events.length+'건</span></div>' +
+    '<div style="font-size:.92rem;font-weight:700;color:var(--n800)">📅 행사 목록 ' +
+    '<span style="color:var(--gr400);font-weight:500;font-size:.8rem">'+S.events.length+'건</span></div>' +
     '</div>' +
     (hasSheet ? '<div class="event-grid">'+cards+'</div>' :
       '<div class="empty"><div class="empty-icon">📅</div><div class="empty-title">등록된 행사가 없습니다</div><div class="empty-desc">EVENT_MASTER 시트에 행사를 등록하세요.</div></div>') +
-    '<div id="attendSec"></div>'
+    '<div id="eventDetailSec"></div>'
   );
 }
 
-function loadAttend(eventId, eventName) {
-  var sec=$id('attendSec'); if(!sec) return;
-  sec.innerHTML='<div class="il-load" style="margin-top:16px"><div class="mini-spin"></div>참석 정보 로딩 중...</div>';
-  API.attend(eventId).then(function(d){
-    var list=(d.success&&d.attendance)?d.attendance:[];
-    var attn=list.filter(function(a){ return isAttnY(a.attended); }).length;
-    var paid=list.filter(function(a){ return isFeeY(a.paid); }).length;
+/* ── 행사 상세 운영 화면 진입 ── */
+function openEventDetail(eventId, eventName, eventDate, eventVenue) {
+  var sec = $id('eventDetailSec'); if (!sec) return;
+  S.currentEvent = { id: eventId, name: eventName, date: eventDate, venue: eventVenue };
 
-    sec.innerHTML=
-      '<div class="tbl-card" style="margin-top:16px">' +
-        '<div class="tbl-hdr">' +
-          '<div class="tbl-hdr-title">👥 '+esc(eventName)+' — 참석 현황</div>' +
-          '<div style="display:flex;gap:6px">' +
-            '<span class="badge b-attend">참석 '+attn+'</span>' +
-            '<span class="badge b-paid">납부 '+paid+'</span>' +
-            '<span class="res-badge">전체 '+list.length+'</span>' +
-          '</div>' +
-        '</div>' +
-        '<div class="tbl-scroll"><table>' +
-          '<thead><tr><th>이름</th><th>회원ID</th>' +
-            '<th class="th-gold">참석여부</th><th class="th-gold">납부여부</th><th>비고</th></tr></thead>' +
-          '<tbody>' +
-            (list.length
-              ? list.map(function(a){
-                  var aY=isAttnY(a.attended), pY=isFeeY(a.paid);
-                  return '<tr id="ar-'+a.rowIndex+'">' +
-                    '<td class="td-name">'+esc(a.name||'—')+'</td>' +
-                    '<td class="td-num">'+esc(a.memberId||'—')+'</td>' +
-                    '<td>' +
-                      '<div style="display:flex;align-items:center;gap:6px">' +
-                        '<span id="at-badge-'+a.rowIndex+'">'+attnBadge(a.attended)+'</span>' +
-                        '<button class="btn btn-xs '+(aY?'btn-fee-revert':'btn-fee-pay')+'" ' +
-                          'onclick="toggleAttend(this,'+a.rowIndex+',4,\''+(aY?'N':'Y')+'\')">' +
-                          (aY?'↩':'✓') +
-                        '</button>' +
-                      '</div>' +
-                    '</td>' +
-                    '<td>' +
-                      '<div style="display:flex;align-items:center;gap:6px">' +
-                        '<span id="ap-badge-'+a.rowIndex+'">'+feeBadge(a.paid)+'</span>' +
-                        '<button class="btn btn-xs '+(pY?'btn-fee-revert':'btn-fee-pay')+'" ' +
-                          'onclick="toggleAttend(this,'+a.rowIndex+',5,\''+(pY?'N':'Y')+'\')">' +
-                          (pY?'↩':'✓') +
-                        '</button>' +
-                      '</div>' +
-                    '</td>' +
-                    '<td style="color:var(--gr500);font-size:.82rem">'+esc(a.note||'—')+'</td>' +
-                  '</tr>';
-                }).join('')
-              : tblEmpty('참석 데이터가 없습니다')
-            ) +
-          '</tbody>' +
-        '</table></div>' +
-      '</div>';
-  }).catch(function(e){ sec.innerHTML='<div style="padding:16px;color:var(--red)">'+esc(e.message)+'</div>'; });
+  // 페이지 타이틀 업데이트
+  var titleEl = $id('pageTitle'); if(titleEl) titleEl.textContent = '행사 상세 운영';
+  var bcEl    = $id('pageBc');    if(bcEl)    bcEl.textContent    = '홈 / 행사관리 / '+eventName;
+
+  // 위로 스크롤
+  sec.scrollIntoView({ behavior:'smooth', block:'start' });
+  sec.innerHTML =
+    '<div class="ev-detail-loading"><div class="mini-spin"></div> 참석 정보를 불러오는 중...</div>';
+
+  API.getEventAttend(eventId)
+    .then(function(d) {
+      if (!d.success) { sec.innerHTML = errHtml(d.error||'참석 데이터 로드 실패'); return; }
+      renderEventDetail(sec, d);
+    })
+    .catch(function(e) { sec.innerHTML = errHtml(e.message); });
 }
 
-/* 행사 참석/납부 토글 저장 */
-function toggleAttend(btn, rowIndex, col, newVal) {
-  btn.disabled = true; btn.textContent='…';
-  API.saveEventAttend(rowIndex, col, newVal)
-    .then(function(r){
-      if (!r.success) { toast('저장 실패: '+(r.error||''),'err'); btn.disabled=false; return; }
-      if (col === 4) {
-        var bdg=$id('at-badge-'+rowIndex); if(bdg) bdg.innerHTML=attnBadge(newVal);
-        btn.className='btn btn-xs '+(newVal==='Y'?'btn-fee-revert':'btn-fee-pay');
-        btn.setAttribute('onclick','toggleAttend(this,'+rowIndex+',4,\''+(newVal==='Y'?'N':'Y')+'\')');
-        btn.textContent=(newVal==='Y'?'↩':'✓');
-      } else {
-        var bdg2=$id('ap-badge-'+rowIndex); if(bdg2) bdg2.innerHTML=feeBadge(newVal);
-        btn.className='btn btn-xs '+(newVal==='Y'?'btn-fee-revert':'btn-fee-pay');
-        btn.setAttribute('onclick','toggleAttend(this,'+rowIndex+',5,\''+(newVal==='Y'?'N':'Y')+'\')');
-        btn.textContent=(newVal==='Y'?'↩':'✓');
-      }
-      btn.disabled=false;
-      toast('저장되었습니다.','ok');
-    })
-    .catch(function(e){ toast(e.message,'err'); btn.disabled=false; });
+function renderEventDetail(sec, d) {
+  var list = d.attendance || [];
+  var total = list.length;
+  var attend  = list.filter(function(a){ return a.attend_status === '참석'; }).length;
+  var absent  = list.filter(function(a){ return a.attend_status === '불참'; }).length;
+  var undecided = list.filter(function(a){ return a.attend_status === '미정'; }).length;
+  var paid    = list.filter(function(a){ return a.payment_status === '납부'; }).length;
+  var unpaid  = list.filter(function(a){ return a.payment_status === '미납'; }).length;
+  var exempt  = list.filter(function(a){ return a.payment_status === '면제'; }).length;
+
+  var rows = list.map(function(a, idx) {
+    var safeId = 'ea_' + idx;
+    return '<div class="ea-row" id="'+safeId+'">' +
+      '<div class="ea-member-info">' +
+      '<div class="ea-name">'+esc(a.member_name||'—')+'</div>' +
+      '<div class="ea-meta">'+(a.generation ? a.generation+'기' : '')+(a.phone ? ' · '+esc(fmtPhone(a.phone)) : '')+'</div>' +
+      '</div>' +
+      '<div class="ea-status-col">' +
+      '<div class="ea-status-lbl">참석</div>' +
+      '<div class="ea-btn-group" id="attend-grp-'+safeId+'">' +
+      attendBtn(safeId, a, '참석') +
+      attendBtn(safeId, a, '불참') +
+      attendBtn(safeId, a, '미정') +
+      '</div>' +
+      '</div>' +
+      '<div class="ea-status-col">' +
+      '<div class="ea-status-lbl">납부</div>' +
+      '<div class="ea-btn-group" id="pay-grp-'+safeId+'">' +
+      payBtn(safeId, a, '납부') +
+      payBtn(safeId, a, '미납') +
+      payBtn(safeId, a, '면제') +
+      '</div>' +
+      '</div>' +
+      '<div class="ea-memo-col">' +
+      '<input class="ea-memo-input" id="memo-'+safeId+'" type="text" placeholder="메모..." value="'+esc(a.memo||'')+'" ' +
+      'onchange="saveMemo(\''+safeId+'\',\''+esc(d.event_id)+'\',\''+esc(d.event_name)+'\',\''+esc(a.member_id)+'\',\''+esc(a.member_name)+'\',\''+esc(a.generation)+'\',\''+esc(a.phone)+'\',this.value)"/>' +
+      '</div>' +
+      '</div>';
+  }).join('');
+
+  sec.innerHTML =
+    '<div class="ev-detail-card">' +
+    /* 상단 헤더 */
+    '<div class="ev-detail-hdr">' +
+    '<button class="btn btn-outline btn-sm" onclick="closeEventDetail()" style="margin-bottom:12px">← 목록으로</button>' +
+    '<div class="ev-detail-title">'+esc(d.event_name||'행사')+'</div>' +
+    '<div class="ev-detail-meta">' +
+    (d.event_date  ? '<span>📅 '+esc(d.event_date)+'</span>'  : '') +
+    (d.event_venue ? '<span>📍 '+esc(d.event_venue)+'</span>' : '') +
+    '</div>' +
+    '</div>' +
+    /* 요약 통계 */
+    '<div class="ev-summary-grid">' +
+    evStat('👥 총 회원', total) +
+    evStat('✅ 참석',    attend,   'green') +
+    evStat('❌ 불참',    absent,   'red') +
+    evStat('❓ 미정',    undecided,'amber') +
+    evStat('💳 납부',    paid,     'green') +
+    evStat('🔴 미납',    unpaid,   'red') +
+    (exempt ? evStat('⭕ 면제', exempt, 'amber') : '') +
+    '</div>' +
+    /* 회원 리스트 */
+    '<div class="ea-list-hdr">' +
+    '<span class="tbl-hdr-title">👥 회원별 참석·납부 관리</span>' +
+    '<span class="res-badge">'+total+'명</span>' +
+    '</div>' +
+    (list.length ?
+      '<div class="ea-list">' + rows + '</div>' :
+      '<div class="empty"><div class="empty-icon">👥</div><div class="empty-title">MEMBERS 시트에 회원 데이터를 등록하세요</div></div>'
+    ) +
+    '</div>';
+}
+
+function evStat(label, num, color) {
+  var col = color==='green' ? 'var(--green)' : color==='red' ? 'var(--red)' : color==='amber' ? 'var(--amber)' : 'var(--n800)';
+  return '<div class="ev-stat-item">' +
+    '<div class="ev-stat-num" style="color:'+col+'">'+num+'</div>' +
+    '<div class="ev-stat-label">'+label+'</div>' +
+    '</div>';
+}
+
+function attendBtn(safeId, a, status) {
+  var isActive = (a.attend_status === status);
+  return '<button class="ea-status-btn'+(isActive?' ea-btn-active-'+getAttendClass(status):'')+'" ' +
+    'id="attend-btn-'+safeId+'-'+status+'" ' +
+    'onclick="setAttendStatus(\''+safeId+'\',this,\'attend\',\''+status+'\',' +
+    '\''+esc(a.member_id)+'\',\''+esc(a.member_name)+'\',\''+esc(a.generation)+'\',\''+esc(a.phone)+'\')">' +
+    status +
+    '</button>';
+}
+function payBtn(safeId, a, status) {
+  var isActive = (a.payment_status === status);
+  return '<button class="ea-status-btn'+(isActive?' ea-btn-active-'+getPayClass(status):'')+'" ' +
+    'id="pay-btn-'+safeId+'-'+status+'" ' +
+    'onclick="setPayStatus(\''+safeId+'\',this,\'pay\',\''+status+'\',' +
+    '\''+esc(a.member_id)+'\',\''+esc(a.member_name)+'\',\''+esc(a.generation)+'\',\''+esc(a.phone)+'\')">' +
+    status +
+    '</button>';
+}
+function getAttendClass(s) { return s==='참석'?'attend':s==='불참'?'absent':'undecided'; }
+function getPayClass(s)    { return s==='납부'?'paid':s==='면제'?'exempt':'unpaid'; }
+
+/* 참석 상태 버튼 클릭 */
+function setAttendStatus(safeId, btn, type, status, memberId, memberName, generation, phone) {
+  if (!S.currentEvent) return;
+  var grp = $id('attend-grp-'+safeId);
+  if (grp) {
+    grp.querySelectorAll('.ea-status-btn').forEach(function(b){
+      b.className = 'ea-status-btn';
+    });
+    btn.className = 'ea-status-btn ea-btn-active-'+getAttendClass(status);
+  }
+  btn.textContent = '저장중…'; btn.disabled = true;
+  API.saveEventAttend({
+    event_id: S.currentEvent.id,
+    event_name: S.currentEvent.name,
+    member_id: memberId,
+    member_name: memberName,
+    generation: generation,
+    phone: phone,
+    attend_status: status
+  }).then(function(r){
+    btn.textContent = status; btn.disabled = false;
+    if (!r.success) { toast('저장 실패: '+(r.error||''),'err'); return; }
+    toast(memberName+' — 참석: '+status, 'ok');
+  }).catch(function(e){ btn.textContent = status; btn.disabled = false; toast(e.message,'err'); });
+}
+
+/* 납부 상태 버튼 클릭 */
+function setPayStatus(safeId, btn, type, status, memberId, memberName, generation, phone) {
+  if (!S.currentEvent) return;
+  var grp = $id('pay-grp-'+safeId);
+  if (grp) {
+    grp.querySelectorAll('.ea-status-btn').forEach(function(b){
+      b.className = 'ea-status-btn';
+    });
+    btn.className = 'ea-status-btn ea-btn-active-'+getPayClass(status);
+  }
+  btn.textContent = '저장중…'; btn.disabled = true;
+  API.saveEventAttend({
+    event_id: S.currentEvent.id,
+    event_name: S.currentEvent.name,
+    member_id: memberId,
+    member_name: memberName,
+    generation: generation,
+    phone: phone,
+    payment_status: status
+  }).then(function(r){
+    btn.textContent = status; btn.disabled = false;
+    if (!r.success) { toast('저장 실패: '+(r.error||''),'err'); return; }
+    toast(memberName+' — 납부: '+status, 'ok');
+  }).catch(function(e){ btn.textContent = status; btn.disabled = false; toast(e.message,'err'); });
+}
+
+/* 메모 저장 */
+function saveMemo(safeId, eventId, eventName, memberId, memberName, generation, phone, memo) {
+  API.saveEventAttend({
+    event_id: eventId,
+    event_name: eventName,
+    member_id: memberId,
+    member_name: memberName,
+    generation: generation,
+    phone: phone,
+    memo: memo
+  }).then(function(r){
+    if (r.success) toast(memberName+' 메모 저장 완료', 'ok');
+    else toast('메모 저장 실패','err');
+  }).catch(function(e){ toast(e.message,'err'); });
+}
+
+/* 목록으로 돌아가기 */
+function closeEventDetail() {
+  var titleEl = $id('pageTitle'); if(titleEl) titleEl.textContent = '행사관리';
+  var bcEl    = $id('pageBc');    if(bcEl)    bcEl.textContent    = '홈 / 행사관리';
+  S.currentEvent = null;
+  buildEventsPage();
 }
 
 /* ═══════════════════════════════════════════════
-   회비 미납 현황
+   찬조 감사 문구 등록 모달 (2순위 기능)
+═══════════════════════════════════════════════ */
+function openSponsorModal() {
+  var overlay = $id('sponsorModalOverlay');
+  if (!overlay) return;
+
+  // 행사 목록 옵션 생성
+  var evOpts = '<option value="">행사 없음 (전체 공지)</option>' +
+    S.events.map(function(e){
+      return '<option value="'+esc(e.id)+'">'+esc(e.name)+'</option>';
+    }).join('');
+  $id('sponEventSelect').innerHTML = evOpts;
+
+  overlay.classList.add('open');
+}
+function closeSponsorModal() {
+  var overlay = $id('sponsorModalOverlay');
+  if (overlay) overlay.classList.remove('open');
+}
+function saveSponsorForm() {
+  var eventSel = $id('sponEventSelect');
+  var selectedEvent = S.events.find(function(e){ return e.id === eventSel.value; }) || {};
+  var data = {
+    event_id:       eventSel.value || '',
+    event_name:     selectedEvent.name || '',
+    sponsor_name:   ($id('sponName').value || '').trim(),
+    generation:     ($id('sponGeneration').value || '').trim(),
+    sponsor_type:   $id('sponType').value || '기타',
+    sponsor_amount: ($id('sponAmount').value || '').trim(),
+    notice_message: ($id('sponMessage').value || '').trim(),
+    is_active:      'Y',
+    display_order:  99,
+    updated_by:     'admin'
+  };
+  if (!data.sponsor_name || !data.notice_message) {
+    toast('찬조자명과 감사 문구는 필수입니다.','err'); return;
+  }
+  var saveBtn = $id('sponSaveBtn');
+  if(saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '저장 중...'; }
+  API.saveSponsorNotice(data)
+    .then(function(r){
+      if(saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '등록'; }
+      if (!r.success) { toast('저장 실패: '+(r.error||''),'err'); return; }
+      toast('찬조 감사 문구가 등록되었습니다.','ok');
+      closeSponsorModal();
+      // 대시보드 캐시 초기화 → 다음 접속 시 전광판 갱신
+      S.dashboard = null; S.sponsorNotices = [];
+    })
+    .catch(function(e){
+      if(saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '등록'; }
+      toast(e.message,'err');
+    });
+}
+
+/* ═══════════════════════════════════════════════
+   회비 미납 현황 (기존 유지)
 ═══════════════════════════════════════════════ */
 function renderUnpaid() {
   API.unpaid().then(function(d){
     if(!d.success){ setContent(errHtml(d.error)); return; }
-    S.unpaid=d.members||[];
-    var fee=CFG.ANNUAL_FEE||0;
-    var totalAmt=S.unpaid.length*fee;
+    S.unpaid = d.members||[];
+    var fee = CFG.ANNUAL_FEE||0;
+    var totalAmt = S.unpaid.length*fee;
 
     setContent(
       '<div class="prog-card">' +
-        '<div class="prog-title">⚠️ 회비 미납 현황</div>' +
-        '<div class="prog-stats">' +
-          '<div><div class="prog-main" style="color:#fca5a5">'+S.unpaid.length+'<span class="prog-unit" style="color:#f87171">명</span></div></div>' +
-          '<div class="prog-detail">회비 미납 회원 목록입니다.<br/>' +
-            (fee?'예상 미수금: <strong style="color:#fcd34d">'+fmtMoney(totalAmt)+'</strong>':'회비 금액은 config.js에서 설정하세요.') +
-          '</div>' +
-        '</div>' +
+      '<div class="prog-title">⚠️ 회비 미납 현황</div>' +
+      '<div class="prog-stats">' +
+      '<div><div class="prog-main" style="color:#fca5a5">'+S.unpaid.length+'<span class="prog-unit" style="color:#f87171">명</span></div></div>' +
+      '<div class="prog-detail">회비 미납 회원 목록입니다.<br/>' +
+      (fee?'예상 미수금: <strong style="color:#fcd34d">'+fmtMoney(totalAmt)+'</strong>':'회비 금액은 config.js에서 설정하세요.') +
       '</div>' +
-
+      '</div>' +
+      '</div>' +
       '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">' +
-        '<div style="flex:1;font-size:.85rem;color:var(--gr600)">미납 회원 <strong>'+S.unpaid.length+'명</strong>' +
-          (fee?' · 미수 예상 <span style="color:var(--g600);font-weight:700">'+fmtMoney(totalAmt)+'</span>':'') +
-        '</div>' +
-        '<button class="btn btn-gold btn-sm" onclick="exportCSV()">📥 CSV 다운로드</button>' +
-        '<button class="btn btn-outline btn-sm" onclick="copyList()">📋 클립보드 복사</button>' +
+      '<div style="flex:1;font-size:.85rem;color:var(--gr600)">미납 회원 <strong>'+S.unpaid.length+'명</strong>' +
+      (fee?' · 미수 예상 <span style="color:var(--g600);font-weight:700">'+fmtMoney(totalAmt)+'</span>':'') +
       '</div>' +
-
+      '<button class="btn btn-gold btn-sm" onclick="exportCSV()">📥 CSV 다운로드</button>' +
+      '<button class="btn btn-outline btn-sm" onclick="copyList()">📋 클립보드 복사</button>' +
+      '</div>' +
       '<div class="tbl-card">' +
-        '<div class="tbl-hdr"><span class="tbl-hdr-title">⚠️ 회비 미납 회원 목록</span><span class="res-badge">'+S.unpaid.length+'명</span></div>' +
-        '<div class="tbl-scroll"><table>' +
-          '<thead><tr><th>이름</th><th>기수</th><th>연락처</th><th>이메일</th><th>현소속</th><th>주소</th><th style="text-align:center">상세</th></tr></thead>' +
-          '<tbody>' +
-            (S.unpaid.length
-              ? S.unpaid.map(function(m){
-                  var ph=m.phone?'<a class="lk-phone" href="tel:'+esc(m.phone)+'">'+esc(fmtPhone(m.phone))+'</a>':'—';
-                  var em=m.email?'<a class="lk-email" href="mailto:'+esc(m.email)+'">'+esc(m.email)+'</a>':'—';
-                  return '<tr><td class="td-name">'+esc(m.name||'—')+'</td><td class="td-num">'+esc(m.gradYear||'—')+'</td>' +
-                    '<td>'+ph+'</td><td><span class="truncate">'+em+'</span></td>' +
-                    '<td><span class="truncate">'+esc(m.org||'—')+'</span></td>' +
-                    '<td><span class="truncate">'+esc(m.address||'—')+'</span></td>' +
-                    '<td class="td-c"><button class="btn btn-primary btn-sm" onclick="openModal('+m.rowIndex+')">상세</button></td></tr>';
-                }).join('')
-              : tblEmpty('🎉 회비 미납 회원이 없습니다')
-            ) +
-          '</tbody>' +
-        '</table></div>' +
+      '<div class="tbl-hdr"><span class="tbl-hdr-title">⚠️ 회비 미납 회원 목록</span><span class="res-badge">'+S.unpaid.length+'명</span></div>' +
+      '<div class="tbl-scroll"><table>' +
+      '<thead><tr><th>이름</th><th>기수</th><th>연락처</th><th>이메일</th><th>현소속</th><th>주소</th><th style="text-align:center">상세</th></tr></thead>' +
+      '<tbody>' +
+      (S.unpaid.length
+        ? S.unpaid.map(function(m){
+          var ph=m.phone?'<a class="lk-phone" href="tel:'+esc(m.phone)+'">'+esc(fmtPhone(m.phone))+'</a>':'—';
+          var em=m.email?'<a class="lk-email" href="mailto:'+esc(m.email)+'">'+esc(m.email)+'</a>':'—';
+          return '<tr><td class="td-name">'+esc(m.name||'—')+'</td><td class="td-num">'+esc(m.gradYear||'—')+'</td>' +
+            '<td>'+ph+'</td><td><span class="truncate">'+em+'</span></td>' +
+            '<td><span class="truncate">'+esc(m.org||'—')+'</span></td>' +
+            '<td><span class="truncate">'+esc(m.address||'—')+'</span></td>' +
+            '<td class="td-c"><button class="btn btn-primary btn-sm" onclick="openModal('+m.rowIndex+')">상세</button></td></tr>';
+        }).join('')
+        : tblEmpty('🎉 회비 미납 회원이 없습니다')
+      ) +
+      '</tbody>' +
+      '</table></div>' +
       '</div>'
     );
   }).catch(function(e){ setContent(errHtml(e.message)); });
@@ -696,7 +947,7 @@ function exportCSV() {
 function copyList() {
   if(!S.unpaid.length){ toast('미납 회원 데이터가 없습니다','err'); return; }
   var txt=S.unpaid.map(function(m,i){
-    return (i+1)+'. '+(m.name||'—')+' ('+(m.gradYear||'—')+'년도) '+(m.phone?fmtPhone(m.phone):'—');
+    return (i+1)+'. '+(m.name||'—')+' ('+(m.gradYear||'—')+'기) '+(m.phone?fmtPhone(m.phone):'—');
   }).join('\n');
   navigator.clipboard.writeText(txt)
     .then(function(){ toast(S.unpaid.length+'명 클립보드 복사 완료','ok'); })
@@ -704,7 +955,7 @@ function copyList() {
 }
 
 /* ═══════════════════════════════════════════════
-   회원 상세 모달
+   회원 상세 모달 (기존 유지)
 ═══════════════════════════════════════════════ */
 function openModal(rowIndex) {
   setModalLoad();
@@ -731,16 +982,16 @@ function fillModal(m) {
   $id('modalBody').innerHTML=
     '<div class="modal-sec-lbl">기본 정보</div>' +
     '<div class="modal-grid">' +
-      mf('졸업연도',esc(m.gradYear)||'—') + mf('현소속',esc(m.org)||'—') +
-      mf('연락처',ph) + mf('이메일',em,true) +
-      mf('회비납부',feeBadge(m.feePaid)) +
+    mf('졸업연도',esc(m.gradYear)||'—') + mf('현소속',esc(m.org)||'—') +
+    mf('연락처',ph) + mf('이메일',em,true) +
+    mf('회비납부',feeBadge(m.feePaid)) +
     '</div>' +
     '<div class="modal-sec-lbl">추가 정보</div>' +
     '<div class="modal-grid">' +
-      mf('주소록',esc(m.address)||'<em class="mf-empty">—</em>',true) +
-      mf('특이사항',esc(m.note)||'<em class="mf-empty">—</em>',true) +
-      mf('최종동기화',esc(m.syncDate)||'<em class="mf-empty">—</em>') +
-      mf('회원ID',esc(m.id)||'<em class="mf-empty">—</em>') +
+    mf('주소록',esc(m.address)||'<em class="mf-empty">—</em>',true) +
+    mf('특이사항',esc(m.note)||'<em class="mf-empty">—</em>',true) +
+    mf('최종동기화',esc(m.syncDate)||'<em class="mf-empty">—</em>') +
+    mf('회원ID',esc(m.id)||'<em class="mf-empty">—</em>') +
     '</div>';
 }
 function mf(lbl,valHtml,full){ return '<div class="'+(full?'m-fl':'')+'"><div class="mf-lbl">'+lbl+'</div><div class="mf-val">'+valHtml+'</div></div>'; }
@@ -749,32 +1000,46 @@ function mf(lbl,valHtml,full){ return '<div class="'+(full?'m-fl':'')+'"><div cl
 function openSidebar()  { $id('sidebar').classList.add('open'); $id('sidebarOverlay').classList.add('open'); document.body.style.overflow='hidden'; }
 function closeSidebar() { $id('sidebar').classList.remove('open'); $id('sidebarOverlay').classList.remove('open'); document.body.style.overflow=''; }
 function setSyncText() {
-  var t=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
-  var el=$id('syncText'); if(el) el.textContent='동기화: '+t;
+  var t = new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+  var el = $id('syncText'); if(el) el.textContent='동기화: '+t;
 }
 
 /* ─── 초기화 ─────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', function() {
-  var name=CFG.ORG_NAME||'J_LAB';
-  var sub=CFG.ORG_SUB||'회원관리 시스템';
+  var name = CFG.ORG_NAME || 'J_LAB';
+  var sub  = CFG.ORG_SUB  || '회원관리 시스템';
+
   ['brandOrgName','headerOrgPill'].forEach(function(id){ var el=$id(id); if(el) el.textContent=name; });
-  var subEl=$id('brandOrgSub'); if(subEl) subEl.textContent=sub;
-  var logoEl=$id('brandLogoText'); if(logoEl) logoEl.textContent=(name||'J').charAt(0);
-  document.title=name+' 회원관리';
+  var subEl  = $id('brandOrgSub');   if(subEl)  subEl.textContent=sub;
+  var logoEl = $id('brandLogoText'); if(logoEl) logoEl.textContent=(name||'J').charAt(0);
+  document.title = name+' 회원관리';
 
   document.querySelectorAll('[data-page]').forEach(function(btn){
     btn.addEventListener('click',function(){ navigate(this.getAttribute('data-page')); });
   });
-  var mt=$id('menuToggle'); if(mt) mt.addEventListener('click',openSidebar);
-  var so=$id('sidebarOverlay'); if(so) so.addEventListener('click',closeSidebar);
-  var rb=$id('btnRefresh');
+
+  var mt = $id('menuToggle'); if(mt) mt.addEventListener('click',openSidebar);
+  var so = $id('sidebarOverlay'); if(so) so.addEventListener('click',closeSidebar);
+
+  var rb = $id('btnRefresh');
   if(rb) rb.addEventListener('click',function(){
-    S.dashboard=null; S.members=[]; S.gradYears=[]; S.regions=[]; S.events=[]; S.notices=[];
+    S.dashboard=null; S.members=[]; S.gradYears=[]; S.regions=[]; S.events=[]; S.notices=[]; S.sponsorNotices=[];
     toast('새로고침 중...'); renderPage(S.page);
   });
-  $id('modalClose').addEventListener('click',closeModal);
+
+  $id('modalClose').addEventListener('click', closeModal);
   $id('modalOverlay').addEventListener('click',function(e){ if(e.target===this) closeModal(); });
-  document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeModal(); });
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape') { closeModal(); closeSponsorModal(); }
+  });
+
+  // 찬조 등록 모달 닫기 버튼
+  var sponClose = $id('sponsorModalClose');
+  if(sponClose) sponClose.addEventListener('click', closeSponsorModal);
+  var sponOverlay = $id('sponsorModalOverlay');
+  if(sponOverlay) sponOverlay.addEventListener('click',function(e){ if(e.target===this) closeSponsorModal(); });
+
   if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(function(){}); }
+
   navigate('dashboard');
 });
