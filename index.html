@@ -1,20 +1,21 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
-<meta name="theme-color" content="#0a1628"/>
-<meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="apple-mobile-web-app-title" content="J_LAB"/>
-<meta name="description" content="J_LAB 회원관리 시스템"/>
-<title>J_LAB 회원관리</title>
-<link rel="manifest" href="manifest.json"/>
-<link rel="apple-touch-icon" href="icon-192.png"/>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="style.css"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+  <meta name="theme-color" content="#0a1628"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="J_LAB"/>
+  <meta name="description" content="J_LAB 회원관리 시스템"/>
+  <title>J_LAB 회원관리</title>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="stylesheet" href="style_additions.css"/>
 </head>
 <body>
 
@@ -26,7 +27,7 @@
       <div class="brand-logo" id="brandLogoText">J</div>
       <div>
         <div class="brand-name" id="brandOrgName">J_LAB</div>
-        <div class="brand-sub"  id="brandOrgSub">회원관리 시스템</div>
+        <div class="brand-sub" id="brandOrgSub">회원관리 시스템</div>
       </div>
     </div>
     <div class="sidebar-divider"></div>
@@ -57,7 +58,7 @@
         <span class="sync-dot"></span>
         <span class="sync-text" id="syncText">연결 중...</span>
       </div>
-      <span class="version-badge">v2.0</span>
+      <span class="version-badge">v4.0</span>
     </div>
   </nav>
 
@@ -143,6 +144,64 @@
       </button>
     </div>
     <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<!-- ══ 찬조 감사 문구 등록 모달 ══ -->
+<div id="sponsorModalOverlay" role="dialog" aria-modal="true">
+  <div id="sponsorModal">
+    <div class="spon-modal-hdr">
+      <div class="spon-modal-title">🎉 찬조 감사 문구 등록</div>
+      <button class="modal-close" id="sponsorModalClose" aria-label="닫기">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="20" height="20">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="spon-modal-body">
+      <!-- 행사 선택 -->
+      <div class="spon-form-group">
+        <label class="spon-form-label">관련 행사 (선택)</label>
+        <select id="sponEventSelect"><option value="">행사 없음 (전체 공지)</option></select>
+      </div>
+      <!-- 찬조자 정보 -->
+      <div class="spon-form-row">
+        <div class="spon-form-group">
+          <label class="spon-form-label">찬조자명 *</label>
+          <input id="sponName" type="text" placeholder="예: 김철수"/>
+        </div>
+        <div class="spon-form-group">
+          <label class="spon-form-label">기수</label>
+          <input id="sponGeneration" type="text" placeholder="예: 12"/>
+        </div>
+      </div>
+      <!-- 찬조 유형 / 금액 -->
+      <div class="spon-form-row">
+        <div class="spon-form-group">
+          <label class="spon-form-label">찬조 유형</label>
+          <select id="sponType">
+            <option value="찬조금">💰 찬조금</option>
+            <option value="물품">📦 물품</option>
+            <option value="식사">🍽 식사</option>
+            <option value="경품">🎁 경품</option>
+            <option value="기타">기타</option>
+          </select>
+        </div>
+        <div class="spon-form-group">
+          <label class="spon-form-label">금액 (선택)</label>
+          <input id="sponAmount" type="text" placeholder="예: 300,000"/>
+        </div>
+      </div>
+      <!-- 전광판 문구 -->
+      <div class="spon-form-group">
+        <label class="spon-form-label">전광판 표시 문구 *</label>
+        <textarea id="sponMessage" placeholder="예: 🎉 스승의날 골프대회에 12기 김철수 원우님께서 찬조금 300,000원을 후원해 주셨습니다. 진심으로 감사드립니다."></textarea>
+      </div>
+    </div>
+    <div class="spon-modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeSponsorModal()">취소</button>
+      <button class="btn btn-gold btn-sm" id="sponSaveBtn" onclick="saveSponsorForm()">🎉 등록</button>
+    </div>
   </div>
 </div>
 
