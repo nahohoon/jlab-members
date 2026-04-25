@@ -1,35 +1,86 @@
-/**
- * J_LAB 회원관리 v2.0 — sw.js (Service Worker)
- * 모바일 홈화면 설치 + 정적 자원 오프라인 캐시
- */
-var CACHE = 'jlab-v2-1';
-var ASSETS = ['./', './index.html', './style.css', './script.js', './config.js', './manifest.json'];
+/* J_LAB Service Worker v4.6.3
+   목적: PWA 설치 지원 + 캐시 꼬임 최소화
+   원칙: HTML/JS/CSS는 network-first, 아이콘/manifest는 cache-first
+*/
 
-self.addEventListener('install', function(e) {
+const CACHE_NAME = "jlab-pwa-v4-6-3";
+
+const CORE_ASSETS = [
+  "./",
+  "./manifest.json",
+  "./icon-192.png",
+  "./icon-512.png",
+  "./apple-touch-icon.png"
+];
+
+self.addEventListener("install", (event) => {
   self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then(function(c){ return c.addAll(ASSETS).catch(function(){}); }));
+
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(CORE_ASSETS).catch(() => null))
+  );
 });
 
-self.addEventListener('activate', function(e) {
-  e.waitUntil(caches.keys().then(function(keys){
-    return Promise.all(keys.filter(function(k){ return k!==CACHE; }).map(function(k){ return caches.delete(k); }));
-  }).then(function(){ return self.clients.claim(); }));
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then((keys) =>
+        Promise.all(
+          keys.map((key) => {
+            if (key !== CACHE_NAME) {
+              return caches.delete(key);
+            }
+            return null;
+          })
+        )
+      )
+      .then(() => self.clients.claim())
+  );
 });
 
-self.addEventListener('fetch', function(e) {
-  var url = new URL(e.request.url);
-  if (url.hostname.indexOf('script.google.com') !== -1 || url.hostname.indexOf('googleapis.com') !== -1) return;
-  e.respondWith(
-    fetch(e.request).then(function(res) {
-      if (res && res.status === 200 && e.request.method === 'GET') {
-        var clone = res.clone();
-        caches.open(CACHE).then(function(c){ c.put(e.request, clone); });
-      }
-      return res;
-    }).catch(function() {
-      return caches.match(e.request).then(function(cached){
-        return cached || new Response('<h2 style="font-family:sans-serif;padding:40px">오프라인 상태입니다. 네트워크 연결 후 다시 시도해 주세요.</h2>',
-          { headers:{'Content-Type':'text/html;charset=utf-8'} });
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+
+  if (req.method !== "GET") return;
+
+  const url = new URL(req.url);
+
+  // GitHub Pages 외부 요청은 그대로 통과
+  if (!url.hostname.includes("nahohoon.github.io")) {
+    return;
+  }
+
+  // HTML / JS / CSS는 최신 파일 우선
+  if (
+    req.mode === "navigate" ||
+    url.pathname.endsWith(".html") ||
+    url.pathname.endsWith(".js") ||
+    url.pathname.endsWith(".css")
+  ) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+          return res;
+        })
+        .catch(() =>
+          caches.match(req).then((cached) => cached || caches.match("./"))
+        )
+    );
+    return;
+  }
+
+  // 아이콘, manifest 등은 캐시 우선
+  event.respondWith(
+    caches.match(req).then((cached) => {
+      if (cached) return cached;
+
+      return fetch(req).then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+        return res;
       });
     })
   );
