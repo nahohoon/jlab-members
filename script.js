@@ -306,12 +306,14 @@ function renderDashboard() {
             ? '<img class="notice-img" src="'+esc(normalizeImageUrl(n.image_url))+'" alt="공지 이미지" onerror="this.style.display=\'none\'">'
             : '';
           return '<div class="notice-item'+(imp?' notice-imp':'')+'">' +
+            '<div class="notice-block">' +
             (imp ? '<span class="notice-badge">중요</span>' : '') +
             (n.id ? '<div class="notice-id">'+esc(n.id)+'</div>' : '') +
             '<div class="notice-title">'+esc(n.title)+'</div>' +
             (n.body ? '<div class="notice-body">'+esc(n.body)+'</div>' : '') +
             imgHtml +
-            '<div class="notice-date">'+esc(n.date)+'</div>' +
+            (n.date ? '<div class="notice-date">'+esc(n.date)+'</div>' : '') +
+            '</div>' +
             '</div>';
         }).join('') +
         '</div>';

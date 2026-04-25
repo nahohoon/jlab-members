@@ -289,11 +289,38 @@ html, body {
 }
 
 /* ── 7. [v4.5/v4.5.1 FIX] 공지사항 줄바꿈 정렬 수정 ─── */
-/* flex/grid 구조 안에서 좌측 정렬 완전 보장 */
+/* ─────────────────────────────────────────────────────
+   근본 원인: style.css의 .notice-item { display:flex; flex-direction:column }
+   → flex child가 된 .notice-title, .notice-body에 align-self 미설정으로
+     오른쪽으로 밀리는 현상 발생.
+   해결책: .notice-block wrapper로 감싸 flex 구조를 완전히 격리,
+           모든 텍스트 요소에 width:100% + text-align:left 강제.
+   ───────────────────────────────────────────────────── */
 .notice-list { width: 100%; }
+
+/* .notice-item 자체: flex 완전 해제 → block으로 덮어쓰기 */
+.notice-item {
+  display: block !important;
+  flex-direction: unset !important;
+  align-items: unset !important;
+  justify-content: unset !important;
+  text-align: left !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* [v4.5.1] notice-block: 모든 내용을 감싸는 세로형 좌측 정렬 컨테이너 */
+.notice-block {
+  display: block !important;
+  width: 100% !important;
+  text-align: left !important;
+  box-sizing: border-box !important;
+}
+
 /* [v4.5.1] 공지ID 스타일 */
 .notice-id {
   display: block !important;
+  width: 100% !important;
   text-align: left !important;
   font-size: .75rem !important;
   font-weight: 600 !important;
@@ -301,16 +328,13 @@ html, body {
   letter-spacing: .04em;
   margin-bottom: 3px;
   font-family: monospace, 'Noto Sans KR', sans-serif;
+  float: none !important;
 }
-.notice-item {
-  /* 기존 display:flex → block으로 변경해 줄바꿈 정렬 보장 */
-  display: block !important;
-  text-align: left !important;
-  width: 100%;
-  box-sizing: border-box;
-}
+
+/* 제목 */
 .notice-title {
   display: block !important;
+  width: 100% !important;
   text-align: left !important;
   font-size: 1.1875rem !important;
   font-weight: 700 !important;
@@ -319,9 +343,16 @@ html, body {
   letter-spacing: -.01em;
   word-break: keep-all;
   overflow-wrap: anywhere;
+  float: none !important;
+  flex: unset !important;
+  align-self: unset !important;
 }
+
+/* 본문 — 가장 중요: width:100% + display:block + text-align:left 삼중 강제 */
 .notice-body {
   display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
   text-align: left !important;
   font-size: 1.0625rem !important;
   color: var(--gr600) !important;
@@ -329,22 +360,37 @@ html, body {
   white-space: pre-line;
   word-break: keep-all;
   overflow-wrap: anywhere;
+  float: none !important;
+  flex: unset !important;
+  align-self: unset !important;
+  margin-top: 4px !important;
 }
+
+/* 날짜: 오른쪽 끝 배치 제거 → 본문 아래 왼쪽 */
 .notice-date {
   display: block !important;
-  text-align: right !important;
-  font-size: .82rem !important;
-  margin-top: 4px;
+  width: 100% !important;
+  text-align: left !important;
+  font-size: .78rem !important;
+  color: var(--gr400) !important;
+  margin-top: 6px !important;
+  float: none !important;
+  flex: unset !important;
 }
+
+/* 중요 뱃지 */
 .notice-badge {
   display: inline-block !important;
+  float: none !important;
+  align-self: unset !important;
   margin-bottom: 4px;
 }
 
-/* 모바일 */
+/* 모바일 폰트 보정 */
 @media (max-width: 900px) {
   .notice-title { font-size: 1rem !important; }
   .notice-body  { font-size: .9375rem !important; }
+  .notice-date  { font-size: .72rem !important; }
 }
 
 /* 다가오는 행사 글씨도 충분히 */
