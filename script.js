@@ -1,15 +1,16 @@
 /**
- * J_LAB 회원관리 v4.4 — script.js
+ * J_LAB 회원관리 v4.5 — script.js
  * GitHub Pages SPA | Apps Script API 연동
  * ─────────────────────────────────────────────────────────────────
- * v4.4 변경:
- *   [1] PC/모바일 대시보드 인사말 통일
- *   [2] 모바일 빠른 실행 3개 고정 (.v44-quick)
- *   [3] PC 대시보드 기수별 현황 제거 → 실용 패널 교체
- *       (납부율 도넛 + 회비 미납 요약 + 최근 찬조 감사)
- *   [4] 대시보드 2컬럼 레이아웃 (PC 메인+사이드)
- *   [5] 공지사항 최근 5개, 행사 저장 로직 유지
- *   [6] 찬조 전광판·행사관리·회원관리 기존 기능 유지
+ * v4.5 변경:
+ *   [1] 대시보드 세로형 단일컬럼 통일 (PC 2컬럼 분할 제거)
+ *   [2] 대시보드 순서: 인사말→전광판→공지→행사→빠른실행→요약→미납
+ *   [3] 행사 카드 onclick → data-* 속성 방식으로 변경 (저장 버그 근본 수정)
+ *   [4] 모바일 빠른 실행 가로 스크롤 완전 차단
+ *   [5] 공지사항 줄바꿈 정렬 수정 (text-align:left, block 구조)
+ *   [6] image_url 지원 (NOTICE_MASTER, EVENT_MASTER)
+ *   [7] Google Drive 링크 자동 변환 함수 추가
+ *   [8] Code.gs와 member_id 복합키 완전 일치 보장
  */
 'use strict';
 
@@ -145,6 +146,18 @@ function ilLoad(){ return '<tr><td colspan="20"><div class="il-load"><div class=
 function tblEmpty(msg){ return '<tr><td colspan="20"><div class="empty"><div class="empty-icon">🔍</div><div class="empty-title">'+(msg||'결과 없음')+'</div><div class="empty-desc">검색어 또는 필터를 변경해 보세요.</div></div></td></tr>'; }
 function errHtml(msg){ return '<div class="empty" style="padding:60px 20px"><div class="empty-icon">⚠️</div><div class="empty-title">데이터 로드 실패</div><div class="empty-desc" style="color:var(--red)">'+esc(msg||'')+'</div><div class="empty-desc" style="margin-top:8px">config.js의 API_URL을 확인하세요.</div></div>'; }
 
+/* ─── 이미지 URL 정규화 (Google Drive 공유 링크 자동 변환) ─── */
+function normalizeImageUrl(url) {
+  if (!url) return '';
+  var s = String(url).trim();
+  if (!s) return '';
+  // https://drive.google.com/file/d/파일ID/view... → 직접 표시 URL로 변환
+  var m = s.match(/\/d\/([^/\?&]+)/);
+  if (m && m[1]) return 'https://drive.google.com/uc?export=view&id=' + m[1];
+  // 이미 uc?export=view 형식이면 그대로
+  return s;
+}
+
 /* ─── Router ─────────────────────────────────── */
 var PAGE_INFO = {
   dashboard : { title:'대시보드',      bc:'홈 / 대시보드' },
@@ -244,14 +257,14 @@ function startTicker() {
 }
 
 /* ═══════════════════════════════════════════════
-   대시보드 — v4.4
+   대시보드 — v4.5
+   순서: 인사말 → 전광판 → 공지 → 행사 → 빠른실행 → 요약 → 미납배너
 ═══════════════════════════════════════════════ */
 function renderDashboard() {
   Promise.all([
     S.dashboard ? Promise.resolve(S.dashboard) : API.dash(),
     API.notices(5).catch(function(){ return {success:true,notices:[]}; }),
-    API.getSponsorNotices().catch(function(){ return {success:true,notices:[]}; }),
-    API.unpaid().catch(function(){ return {success:true,members:[]}; })
+    API.getSponsorNotices().catch(function(){ return {success:true,notices:[]}; })
   ])
   .then(function(res) {
     var d = res[0];
@@ -260,9 +273,7 @@ function renderDashboard() {
 
     var notices        = (res[1].success && res[1].notices) ? res[1].notices : [];
     var sponsorNotices = (res[2].success && res[2].notices) ? res[2].notices : [];
-    var unpaidMembers  = (res[3].success && res[3].members) ? res[3].members : [];
     S.sponsorNotices   = sponsorNotices;
-    S.unpaid           = unpaidMembers;
 
     setSyncText();
 
@@ -270,85 +281,60 @@ function renderDashboard() {
     var pct      = d.feeRate || 0;
     var upcoming = d.upcomingEvents || [];
 
-    /* ── [유지] LED 전광판 ── */
-    var tickerHtml = sponsorNotices.length ? buildTicker(sponsorNotices) : '';
-
-    /* ── 인사말 (PC·모바일 공통) ── */
+    /* ── 1. 인사말 (PC/모바일 공통) ── */
     var greetingHtml =
       '<div class="dash-greeting">' +
       '<h2>안녕하세요, <span class="dash-org">J_LAB 회원여러분</span>. 화이팅^^</h2>' +
       '<p>오늘의 운영 현황입니다.</p>' +
       '</div>';
 
-    /* ── 운영 요약 미니 카드 ── */
-    var miniHtml =
-      '<div class="mini-stat-row">' +
-      mStat('총 회원수', d.total,      '명', 'ms-total') +
-      mStat('회비 납부', d.feePaid,    '명', 'ms-paid') +
-      mStat('회비 미납', d.feeUnpaid,  '명', 'ms-unpaid') +
-      '</div>';
+    /* ── 2. LED 전광판 (유지) ── */
+    var tickerHtml = sponsorNotices.length ? buildTicker(sponsorNotices) : '';
 
-    /* ── [v4.4] 빠른 실행: 모바일 3개 / PC 4개 ── */
-    var quickHtml =
-      '<div class="dash-sec-lbl" style="margin-top:4px">⚡ 빠른 실행</div>' +
-      '<div class="quick-grid v44-quick">' +
-      qBtn('👥','회원관리','members') +
-      qBtn('📅','행사관리','events') +
-      qBtn('⚠️','미납 현황','unpaid') +
-      qBtn('💰','회비관리','fees', 'qb-fees-btn') +
-      '</div>';
-
-    /* ── 미납 배너 ── */
-    var unpaidBanner =
-      '<div class="unpaid-banner" onclick="navigate(\'unpaid\')" role="button" tabindex="0">' +
-      '<div class="ub-left">' +
-      '<div class="ub-dot"></div>' +
-      '<div>' +
-      '<div class="ub-title">⚠️ 회비 미납 현황</div>' +
-      '<div class="ub-desc">미납자 <strong>'+d.feeUnpaid+'명</strong>' +
-      (fee ? ' · 예상 미수금 <strong>'+fmtMoney(d.feeUnpaid*fee)+'</strong>' : '') +
-      '</div>' +
-      '</div>' +
-      '</div>' +
-      '<div class="ub-arrow">›</div>' +
-      '</div>';
-
-    /* ── [v4.4] 공지사항 카드 (최근 5개) ── */
+    /* ── 3. 공지사항 (최근 5개, image_url 지원) ── */
     var noticeCardHtml = '';
     if (notices.length) {
       noticeCardHtml =
-        '<div class="dash-sec-lbl">📢 최근 공지사항</div>' +
+        '<div class="dash-sec-lbl">📢 공지사항</div>' +
         '<div class="notice-list">' +
         notices.map(function(n) {
           var imp = isImpY(n.important);
+          var imgHtml = n.image_url
+            ? '<img class="notice-img" src="'+esc(normalizeImageUrl(n.image_url))+'" alt="공지 이미지" onerror="this.style.display='none'">'
+            : '';
           return '<div class="notice-item'+(imp?' notice-imp':'')+'">' +
             (imp ? '<span class="notice-badge">중요</span>' : '') +
             '<div class="notice-title">'+esc(n.title)+'</div>' +
             (n.body ? '<div class="notice-body">'+esc(n.body)+'</div>' : '') +
+            imgHtml +
             '<div class="notice-date">'+esc(n.date)+'</div>' +
             '</div>';
         }).join('') +
         '</div>';
     }
 
-    /* ── [v4.4] 다가오는 행사 (최근 3개) ── */
+    /* ── 4. 다가오는 행사 (image_url 지원) ── */
     var upcomingHtml;
     if (upcoming.length) {
       upcomingHtml =
         '<div class="dash-sec-lbl">📅 다가오는 행사</div>' +
         '<div class="upcoming-list">' +
-        upcoming.map(function(e) {
+        upcoming.map(function(ev) {
+          var imgHtml = ev.image_url
+            ? '<img class="event-card-img" src="'+esc(normalizeImageUrl(ev.image_url))+'" alt="행사 이미지" onerror="this.style.display='none'">'
+            : '';
           return '<div class="upcoming-card">' +
             '<div class="uc-top">' +
-            '<div class="uc-name">'+esc(e.name)+'</div>' +
-            dDayTag(e.date) +
+            '<div class="uc-name">'+esc(ev.name)+'</div>' +
+            dDayTag(ev.date) +
             '</div>' +
             '<div class="uc-meta">' +
-            (e.date  ? '<span><span class="uc-ico">🗓</span>'+esc(e.date)+'</span>' : '') +
-            (e.venue ? '<span><span class="uc-ico">📍</span>'+esc(e.venue)+'</span>' : '') +
-            (e.fee   ? '<span><span class="uc-ico">💰</span>'+esc(e.fee)+'</span>' : '') +
+            (ev.date  ? '<span><span class="uc-ico">🗓</span>'+esc(ev.date)+'</span>'  : '') +
+            (ev.venue ? '<span><span class="uc-ico">📍</span>'+esc(ev.venue)+'</span>' : '') +
+            (ev.fee   ? '<span><span class="uc-ico">💰</span>'+esc(ev.fee)+'</span>'   : '') +
             '</div>' +
-            (e.note  ? '<div class="uc-note">📝 '+esc(e.note)+'</div>' : '') +
+            (ev.note ? '<div class="uc-note">📝 '+esc(ev.note)+'</div>' : '') +
+            imgHtml +
             '</div>';
         }).join('') +
         '</div>';
@@ -363,30 +349,55 @@ function renderDashboard() {
         '</div>';
     }
 
-    /* ── [v4.4] PC 전용 우측 패널: 납부율 도넛 + 회비 미납 요약 + 최근 찬조 ── */
-    var desktopPanelHtml = buildDesktopPanel(d, pct, fee, unpaidMembers, sponsorNotices);
+    /* ── 5. 빠른 실행 (v4.5 클래스: v45-quick) ── */
+    var quickHtml =
+      '<div class="dash-sec-lbl">⚡ 빠른 실행</div>' +
+      '<div class="v45-quick">' +
+      qBtn('👥','회원관리','members') +
+      qBtn('📅','행사관리','events') +
+      qBtn('⚠️','미납 현황','unpaid') +
+      qBtn('💰','회비관리','fees','qb-fees-btn') +
+      '</div>';
 
-    /* ── 최종 렌더 ── */
+    /* ── 6. 운영 요약 미니 카드 + 납부율 바 ── */
+    var miniHtml =
+      '<div class="dash-sec-lbl">📊 운영 요약</div>' +
+      '<div class="mini-stat-row">' +
+      mStat('총 회원수', d.total,     '명', 'ms-total') +
+      mStat('회비 납부', d.feePaid,   '명', 'ms-paid') +
+      mStat('회비 미납', d.feeUnpaid, '명', 'ms-unpaid') +
+      '</div>' +
+      '<div class="v45-fee-bar-wrap">' +
+      '<div class="v45-fee-bar-label">납부율 <strong>'+pct+'%</strong></div>' +
+      '<div class="prog-bar-track" style="height:10px;margin-top:6px">' +
+      '<div class="prog-bar-fill" style="width:'+pct+'%"></div>' +
+      '</div>' +
+      '</div>';
+
+    /* ── 7. 미납 배너 ── */
+    var unpaidBanner =
+      '<div class="unpaid-banner" onclick="navigate('unpaid')" role="button" tabindex="0">' +
+      '<div class="ub-left">' +
+      '<div class="ub-dot"></div>' +
+      '<div>' +
+      '<div class="ub-title">⚠️ 회비 미납 현황</div>' +
+      '<div class="ub-desc">미납자 <strong>'+d.feeUnpaid+'명</strong>' +
+      (fee ? ' · 예상 미수금 <strong>'+fmtMoney(d.feeUnpaid*fee)+'</strong>' : '') +
+      '</div>' +
+      '</div>' +
+      '</div>' +
+      '<div class="ub-arrow">›</div>' +
+      '</div>';
+
+    /* ── 최종 렌더 (세로형 단일컬럼 — PC/모바일 공통) ── */
     setContent(
-      /* 인사말 */
       greetingHtml +
-      /* 찬조 전광판 */
       tickerHtml +
-      /* PC: 2컬럼 레이아웃, 모바일: 단일 컬럼 */
-      '<div class="v44-dash-wrap">' +
-        /* 왼쪽(또는 전체) 메인 컬럼 */
-        '<div class="v44-main-col">' +
-          miniHtml +
-          unpaidBanner +
-          quickHtml +
-          noticeCardHtml +
-          upcomingHtml +
-        '</div>' +
-        /* 오른쪽: PC 전용 사이드 패널 */
-        '<div class="v44-side-col desk-only">' +
-          desktopPanelHtml +
-        '</div>' +
-      '</div>'
+      noticeCardHtml +
+      upcomingHtml +
+      quickHtml +
+      miniHtml +
+      unpaidBanner
     );
 
     if (sponsorNotices.length) startTicker();
@@ -394,65 +405,6 @@ function renderDashboard() {
   .catch(function(e){ setContent(errHtml(e.message)); });
 }
 
-/* ── PC 전용 사이드 패널 빌더 ── */
-function buildDesktopPanel(d, pct, fee, unpaidMembers, sponsorNotices) {
-  /* 납부율 도넛 */
-  var donutHtml =
-    '<div class="v44-panel-card">' +
-    '<div class="v44-panel-hdr"><div class="card-icon">💰</div>회비 납부율</div>' +
-    '<div class="v44-panel-body">' +
-    '<div class="donut-wrap">' +
-    '<div class="donut-ring" style="--pct:'+pct+'%">' +
-    '<div class="donut-hole">' +
-    '<div class="donut-pct">'+pct+'<span style="font-size:.7rem">%</span></div>' +
-    '<div class="donut-sub">납부율</div>' +
-    '</div>' +
-    '</div>' +
-    '<div>' +
-    '<div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>납부: <strong style="margin-left:4px">'+d.feePaid+'명</strong></div>' +
-    '<div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>미납: <strong style="margin-left:4px">'+d.feeUnpaid+'명</strong></div>' +
-    '<div class="legend-item"><div class="legend-dot" style="background:var(--gr300)"></div>전체: <strong style="margin-left:4px">'+d.total+'명</strong></div>' +
-    '</div>' +
-    '</div>' +
-    '<div class="divider" style="margin:12px 0"></div>' +
-    '<div class="prog-bar-track" style="height:10px"><div class="prog-bar-fill" style="width:'+pct+'%"></div></div>' +
-    '</div>' +
-    '</div>';
-
-  /* 회비 미납 요약 */
-  var unpaidSummaryHtml =
-    '<div class="v44-panel-card" style="margin-top:14px">' +
-    '<div class="v44-panel-hdr"><div class="card-icon">⚠️</div>회비 미납 요약</div>' +
-    '<div class="v44-panel-body">' +
-    '<div style="text-align:center;padding:10px 0">' +
-    '<div style="font-size:2rem;font-weight:800;color:var(--red);line-height:1">'+d.feeUnpaid+'<span style="font-size:.85rem;color:var(--gr400);font-weight:600">명</span></div>' +
-    '<div style="font-size:.78rem;color:var(--gr500);margin-top:4px">회비 미납 회원</div>' +
-    (fee ? '<div style="font-size:.82rem;color:var(--amber);font-weight:700;margin-top:6px">예상 미수금 '+fmtMoney(d.feeUnpaid*fee)+'</div>' : '') +
-    '</div>' +
-    '<button class="btn btn-gold btn-sm" style="width:100%;margin-top:10px" onclick="navigate(\'unpaid\')">⚠️ 미납 현황 보기</button>' +
-    '</div>' +
-    '</div>';
-
-  /* 최근 찬조 감사 카드 (최근 3건) */
-  var recentSponsors = sponsorNotices.slice(0, 3);
-  var sponsorCardHtml = '';
-  if (recentSponsors.length) {
-    sponsorCardHtml =
-      '<div class="v44-panel-card" style="margin-top:14px">' +
-      '<div class="v44-panel-hdr"><div class="card-icon">🎉</div>최근 찬조 감사</div>' +
-      '<div class="v44-panel-body">' +
-      recentSponsors.map(function(s) {
-        return '<div class="v44-spon-item">' +
-          '<div class="v44-spon-name">'+(s.sponsor_name ? esc(s.sponsor_name) : '—')+(s.generation ? ' <span class="v44-spon-gen">'+esc(s.generation)+'기</span>' : '')+'</div>' +
-          (s.notice_message ? '<div class="v44-spon-msg">'+esc(s.notice_message)+'</div>' : '') +
-          '</div>';
-      }).join('') +
-      '</div>' +
-      '</div>';
-  }
-
-  return donutHtml + unpaidSummaryHtml + sponsorCardHtml;
-}
 
 function qBtn(icon, label, page, extraCls) {
   var cls = 'quick-btn' + (extraCls ? ' ' + extraCls : '');
@@ -674,8 +626,13 @@ function buildEventsPage() {
     '<div class="notice-box-body">구글 시트에 <code>EVENT_MASTER</code> 시트를 추가하면 행사 목록이 자동 표시됩니다.<br/>' +
     '컬럼: <code>행사ID</code> · <code>행사명</code> · <code>행사일</code> · <code>장소</code> · <code>참가비</code> · <code>비고</code></div></div>' : '';
 
-  var cards = S.events.map(function(e) {
-    return '<div class="event-card" onclick="openEventDetail(\''+esc(e.id)+'\',\''+esc(e.name)+'\',\''+esc(e.date)+'\',\''+esc(e.venue)+'\')">' +
+  /* [v4.5] onclick 문자열 방식 → data-event-idx 방식으로 변경
+     행사명/장소에 따옴표·특수문자가 있어도 JS 파싱 오류 없이 동작 보장 */
+  var cards = S.events.map(function(e, idx) {
+    var imgHtml = e.image_url
+      ? '<img class="event-card-img" src="'+esc(normalizeImageUrl(e.image_url))+'" alt="행사 이미지" onerror="this.style.display=\'none\'">'
+      : '';
+    return '<div class="event-card" data-event-idx="'+idx+'">' +
       '<div class="ev-name">'+esc(e.name)+'</div>' +
       '<div class="ev-info">' +
       (e.date  ? '<span>📅 '+esc(e.date)+'</span>'  : '') +
@@ -683,6 +640,7 @@ function buildEventsPage() {
       (e.fee   ? '<span>💰 '+esc(e.fee)+'</span>'   : '') +
       (e.note  ? '<span>📝 '+esc(e.note)+'</span>'  : '') +
       '</div>' +
+      imgHtml +
       '<div class="ev-foot"><span class="ev-id-badge">ID: '+esc(e.id)+'</span><span class="ev-view">참석 관리 →</span></div>' +
       '</div>';
   }).join('');
@@ -693,10 +651,23 @@ function buildEventsPage() {
     '<div style="font-size:.92rem;font-weight:700;color:var(--n800)">📅 행사 목록 ' +
     '<span style="color:var(--gr400);font-weight:500;font-size:.8rem">'+S.events.length+'건</span></div>' +
     '</div>' +
-    (hasSheet ? '<div class="event-grid">'+cards+'</div>' :
+    (hasSheet ? '<div class="event-grid" id="eventGrid">'+cards+'</div>' :
       '<div class="empty"><div class="empty-icon">📅</div><div class="empty-title">등록된 행사가 없습니다</div><div class="empty-desc">EVENT_MASTER 시트에 행사를 등록하세요.</div></div>') +
     '<div id="eventDetailSec"></div>'
   );
+
+  /* 행사 카드 클릭 이벤트 — DOM 렌더 후 바인딩 */
+  var grid = $id('eventGrid');
+  if (grid) {
+    grid.addEventListener('click', function(e) {
+      var card = e.target.closest('[data-event-idx]');
+      if (!card) return;
+      var idx = parseInt(card.getAttribute('data-event-idx'));
+      var ev  = S.events[idx];
+      if (!ev) return;
+      openEventDetail(ev.id, ev.name, ev.date, ev.venue);
+    });
+  }
 }
 
 /* ── 행사 상세 운영 화면 진입 ── */
