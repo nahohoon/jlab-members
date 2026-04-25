@@ -1,5 +1,5 @@
 /**
- * J_LAB 회원관리 v4.6 — script.js
+ * J_LAB 회원관리 v4.6.1 — script.js
  * GitHub Pages SPA | Apps Script API 연동
  * ─────────────────────────────────────────────────────────────────
  * v4.5 변경:
@@ -11,6 +11,11 @@
  *   [6] image_url 지원 (NOTICE_MASTER, EVENT_MASTER)
  *   [7] Google Drive 링크 자동 변환 함수 추가
  *   [8] Code.gs와 member_id 복합키 완전 일치 보장
+ * v4.6.1 변경:
+ *   [1] 독립 사진갤러리 페이지 (라우트: gallery) 추가
+ *   [2] 사이드바/하단탭에 사진갤러리 메뉴 추가
+ *   [3] 행사 상세 하단 사진 섹션 제거 (event_name 매칭 의존도 제거)
+ *   [4] 전체 사진 날짜별 그룹 표시 + 최근 4장 하이라이트 배너
  * v4.6 변경:
  *   [1] PHOTO_GALLERY 행사 사진 갤러리 기능 추가
  *   [2] 행사 상세 화면 하단에 사진 배너 표시 (대시보드 제외)
@@ -199,7 +204,8 @@ var PAGE_INFO = {
   members   : { title:'회원관리',      bc:'홈 / 회원관리' },
   fees      : { title:'회비관리',      bc:'홈 / 회비관리' },
   events    : { title:'행사관리',      bc:'홈 / 행사관리' },
-  unpaid    : { title:'회비 미납 현황', bc:'홈 / 회비 미납 현황' }
+  unpaid    : { title:'회비 미납 현황', bc:'홈 / 회비 미납 현황' },
+  gallery   : { title:'사진갤러리',    bc:'홈 / 사진갤러리' }
 };
 function navigate(page) {
   S.page = page;
@@ -217,7 +223,7 @@ function navigate(page) {
 }
 function renderPage(page) {
   setLoading();
-  var map = { dashboard:renderDashboard, members:renderMembers, fees:renderFees, events:renderEvents, unpaid:renderUnpaid };
+  var map = { dashboard:renderDashboard, members:renderMembers, fees:renderFees, events:renderEvents, unpaid:renderUnpaid, gallery:renderGalleryPage };
   if (map[page]) map[page]();
 }
 
@@ -802,16 +808,7 @@ function renderEventDetail(sec, d) {
       '<div class="ea-list">' + rows + '</div>' :
       '<div class="empty"><div class="empty-icon">👥</div><div class="empty-title">MEMBERS 시트에 회원 데이터를 등록하세요</div></div>'
     ) +
-    /* [v4.6] 행사 사진 배너 — 비동기 로딩 플레이스홀더 */
-    '<div id="eventPhotoSection" class="event-photo-section">' +
-    '<div class="ep-loading"><div class="mini-spin"></div> 사진 불러오는 중...</div>' +
-    '</div>' +
     '</div>';
-
-  /* [v4.6] 참석 데이터 렌더 완료 후 사진 비동기 로딩 */
-  if (S.currentEvent && S.currentEvent.name) {
-    loadEventPhotos(S.currentEvent.name);
-  }
 }
 
 function evStat(label, num, color) {
@@ -979,6 +976,150 @@ function closeEventDetail() {
    표시 위치: 행사 상세 운영 화면 하단 (#eventPhotoSection)
    대시보드에는 표시하지 않음
 ═══════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════
+   [v4.6.1] 독립 사진갤러리 페이지
+   라우트: gallery  /  메뉴: 사진갤러리
+   표시: PHOTO_GALLERY 전체(is_active=Y), event_name 필터 없음
+   날짜별 그룹 + 최상단 하이라이트 배너
+   ─────────────────────────────────────────────────────────── */
+
+/** 갤러리 페이지 진입점 — renderPage('gallery') 에서 호출 */
+function renderGalleryPage() {
+  setContent(
+    '<div class="pg-loading"><div class="mini-spin"></div>' +
+    '<p class="pg-loading-txt">사진갤러리를 불러오는 중...</p></div>'
+  );
+  API.getPhotoGallery('')   // event_name 빈값 → 전체 조회
+    .then(function(d) {
+      if (!d.success) {
+        setContent(errHtml('사진갤러리를 불러오지 못했습니다.<br>getPhotoGallery 응답을 확인해 주세요.<br>' + esc(d.error || '')));
+        return;
+      }
+      buildGalleryPage(d.photos || []);
+    })
+    .catch(function(e) {
+      setContent(errHtml('사진갤러리를 불러오지 못했습니다.<br>' + esc(e.message)));
+    });
+}
+
+/**
+ * 갤러리 화면 HTML 렌더링
+ * @param {Array} photos  getPhotoGallery 반환 배열
+ */
+function buildGalleryPage(photos) {
+  /* ── 사진 없음 ── */
+  if (!photos.length) {
+    setContent(
+      '<div class="gallery-page">' +
+      '<div class="gal-header"><h2 class="gal-title">📸 사진갤러리</h2></div>' +
+      '<div class="empty" style="padding:60px 20px">' +
+      '<div class="empty-icon">📷</div>' +
+      '<div class="empty-title">등록된 사진이 없습니다</div>' +
+      '<div class="empty-desc">PHOTO_GALLERY 시트에 사진 링크를 등록해 주세요.</div>' +
+      '</div></div>'
+    );
+    return;
+  }
+
+  /* ── 최신 순 정렬 (display_order ASC → photo_date DESC) ── */
+  var sorted = photos.slice().sort(function(a, b) {
+    if ((a.display_order || 99) !== (b.display_order || 99))
+      return (a.display_order || 99) - (b.display_order || 99);
+    return (b.photo_date || '').localeCompare(a.photo_date || '');
+  });
+
+  /* ── 하이라이트 배너: 상위 최대 4장 ── */
+  var highlights = sorted.slice(0, 4);
+  var highlightHtml = highlights.map(function(p, i) {
+    var imgUrl = normalizeImageUrl(p.image_url);
+    return '<div class="gal-highlight-card" data-gal-idx="' + i + '">' +
+      '<div class="gal-hl-img-wrap">' +
+      '<img class="gal-hl-img" src="' + esc(imgUrl) + '" alt="' + esc(p.title) + '" ' +
+      'loading="lazy" onerror="this.closest(\'.gal-highlight-card\').style.display=\'none\'">' +
+      '<div class="ep-overlay"><span class="ep-zoom-icon">🔍</span></div>' +
+      '</div>' +
+      '<div class="gal-hl-info">' +
+      '<div class="gal-hl-title">' + esc(p.title || '') + '</div>' +
+      (p.event_name ? '<div class="gal-hl-event">📅 ' + esc(p.event_name) + '</div>' : '') +
+      (p.photo_date ? '<div class="gal-hl-date">'  + esc(p.photo_date)  + '</div>' : '') +
+      '</div>' +
+      '</div>';
+  }).join('');
+
+  /* ── 날짜별 그룹화 ── */
+  var groups = {};  // { 'YYYY-MM-DD': [photo, ...] }
+  sorted.forEach(function(p) {
+    var key = p.photo_date || '날짜 미상';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(p);
+  });
+
+  /* 날짜 내림차순 키 정렬 */
+  var dateKeys = Object.keys(groups).sort(function(a, b) {
+    return b.localeCompare(a);
+  });
+
+  /* 날짜별 섹션 HTML */
+  var groupsHtml = dateKeys.map(function(dateKey) {
+    var groupPhotos = groups[dateKey];
+    /* 전체 sorted 배열 기준 인덱스 계산 (모달 연속 탐색용) */
+    var cards = groupPhotos.map(function(p) {
+      var globalIdx = sorted.indexOf(p);
+      var imgUrl    = normalizeImageUrl(p.image_url);
+      return '<div class="event-photo-card gal-card" data-gal-idx="' + globalIdx + '">' +
+        '<div class="event-photo-img-wrap">' +
+        '<img class="event-photo-img" src="' + esc(imgUrl) + '" alt="' + esc(p.title) + '" ' +
+        'loading="lazy" onerror="this.closest(\'.gal-card\').style.display=\'none\'">' +
+        '<div class="ep-overlay"><span class="ep-zoom-icon">🔍</span></div>' +
+        '</div>' +
+        (p.title      ? '<div class="event-photo-title">'  + esc(p.title)      + '</div>' : '') +
+        (p.event_name ? '<div class="gal-card-event">📅 '  + esc(p.event_name) + '</div>' : '') +
+        (p.photo_date ? '<div class="event-photo-date">'   + esc(p.photo_date) + '</div>' : '') +
+        (p.caption    ? '<div class="event-photo-caption">' + esc(p.caption)   + '</div>' : '') +
+        '</div>';
+    }).join('');
+
+    return '<div class="gal-date-group">' +
+      '<div class="gal-date-label">' + esc(dateKey) + '' +
+      '<span class="gal-date-count">' + groupPhotos.length + '장</span></div>' +
+      '<div class="event-photo-grid gal-grid">' + cards + '</div>' +
+      '</div>';
+  }).join('');
+
+  setContent(
+    '<div class="gallery-page">' +
+    '<div class="gal-header">' +
+    '<h2 class="gal-title">📸 사진갤러리</h2>' +
+    '<span class="gal-total">' + sorted.length + '장</span>' +
+    '</div>' +
+    /* 하이라이트 배너 */
+    '<div class="gal-sec-lbl">✨ 최근 사진</div>' +
+    '<div class="gal-highlight-grid" id="galHighlightGrid">' + highlightHtml + '</div>' +
+    /* 날짜별 그룹 */
+    '<div class="gal-sec-lbl" style="margin-top:24px">🗓 날짜별 사진</div>' +
+    '<div id="galGroupSection">' + groupsHtml + '</div>' +
+    '</div>'
+  );
+
+  /* ── 클릭 이벤트 바인딩 (하이라이트 + 그룹 카드) ── */
+  var hlGrid = $id('galHighlightGrid');
+  if (hlGrid) {
+    hlGrid.addEventListener('click', function(e) {
+      var card = e.target.closest('[data-gal-idx]');
+      if (!card) return;
+      openPhotoModal(highlights, parseInt(card.getAttribute('data-gal-idx')));
+    });
+  }
+  var grpSec = $id('galGroupSection');
+  if (grpSec) {
+    grpSec.addEventListener('click', function(e) {
+      var card = e.target.closest('[data-gal-idx]');
+      if (!card) return;
+      openPhotoModal(sorted, parseInt(card.getAttribute('data-gal-idx')));
+    });
+  }
+}
 
 /**
  * 사진 목록 비동기 로딩 — event_name 기준으로 PHOTO_GALLERY 조회

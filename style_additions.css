@@ -859,3 +859,188 @@ html, body {
   #photoModalTitle { font-size: .84rem; }
   #photoModalCaption { font-size: .76rem; }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   [v4.6.1] 독립 사진갤러리 페이지 (.gallery-page)
+   라우트: gallery  /  대시보드·행사상세 미사용
+   ═══════════════════════════════════════════════════════════ */
+
+.gallery-page {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* ── 헤더 ── */
+.gal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.gal-title {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--n900);
+  letter-spacing: -.02em;
+  margin: 0;
+}
+.gal-total {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--white);
+  background: var(--n600);
+  border-radius: 10px;
+  padding: 2px 9px;
+}
+
+/* ── 섹션 레이블 ── */
+.gal-sec-lbl {
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: var(--gr500);
+  text-transform: uppercase;
+  margin: 18px 0 10px;
+}
+
+/* ── 하이라이트 배너 그리드 ── */
+/* PC: 2×2, 태블릿: 2열, 모바일: 1열 */
+.gal-highlight-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 4px;
+}
+
+.gal-highlight-card {
+  background: var(--white);
+  border: 1px solid var(--gr200);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--sh1);
+  cursor: pointer;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.gal-highlight-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--sh2);
+}
+
+.gal-hl-img-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--gr100);
+}
+.gal-hl-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform .3s ease;
+}
+.gal-highlight-card:hover .gal-hl-img { transform: scale(1.04); }
+.gal-highlight-card:hover .ep-overlay  { opacity: 1; }
+
+.gal-hl-info {
+  padding: 10px 14px 12px;
+}
+.gal-hl-title {
+  font-size: .88rem;
+  font-weight: 700;
+  color: var(--n800);
+  line-height: 1.35;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gal-hl-event {
+  font-size: .74rem;
+  color: var(--b500);
+  margin-bottom: 2px;
+}
+.gal-hl-date {
+  font-size: .7rem;
+  color: var(--gr400);
+}
+
+/* ── 날짜별 그룹 ── */
+.gal-date-group {
+  margin-bottom: 28px;
+}
+.gal-date-label {
+  font-size: .9rem;
+  font-weight: 700;
+  color: var(--n700);
+  border-left: 3px solid var(--g400);
+  padding-left: 10px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: -.01em;
+}
+.gal-date-count {
+  font-size: .7rem;
+  font-weight: 600;
+  color: var(--white);
+  background: var(--gr400);
+  border-radius: 8px;
+  padding: 1px 7px;
+}
+
+/* 날짜별 카드 그리드 — PC 3열 */
+.event-photo-grid.gal-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* 갤러리 카드에 행사명 표시 */
+.gal-card-event {
+  font-size: .72rem;
+  color: var(--b500);
+  padding: 0 12px 2px;
+}
+
+/* ── 모바일 반응형 ── */
+@media (max-width: 900px) {
+  .gal-highlight-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .event-photo-grid.gal-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .gal-title { font-size: 1.15rem; }
+}
+
+@media (max-width: 600px) {
+  /* 하이라이트: 1열 전체 너비 */
+  .gal-highlight-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .gal-hl-img-wrap { aspect-ratio: 4 / 3; }
+
+  /* 날짜별 카드: 1열 */
+  .event-photo-grid.gal-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .event-photo-img-wrap { aspect-ratio: 4 / 3; }
+
+  .gal-title       { font-size: 1.05rem; }
+  .gal-date-label  { font-size: .84rem; }
+  .gal-hl-title    { font-size: .82rem; }
+}
+
+@media (max-width: 390px) {
+  .gal-highlight-grid         { gap: 8px; }
+  .event-photo-grid.gal-grid  { gap: 8px; }
+  .gal-hl-img-wrap            { aspect-ratio: 3 / 2; }
+  .event-photo-img-wrap       { aspect-ratio: 3 / 2; }
+}
