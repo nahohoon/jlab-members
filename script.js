@@ -1,5 +1,5 @@
 /**
- * J_LAB 회원관리 v4.6.1 — script.js
+ * J_LAB 회원관리 v4.6.2 — script.js
  * GitHub Pages SPA | Apps Script API 연동
  * ─────────────────────────────────────────────────────────────────
  * v4.5 변경:
@@ -11,6 +11,10 @@
  *   [6] image_url 지원 (NOTICE_MASTER, EVENT_MASTER)
  *   [7] Google Drive 링크 자동 변환 함수 추가
  *   [8] Code.gs와 member_id 복합키 완전 일치 보장
+ * v4.6.2 변경:
+ *   [1] normalizeImageUrl — thumbnail?id=&sz=w1200 방식으로 변경
+ *   [2] 사진 카드 onerror — 카드 숨김 제거 → 오류 문구 표시로 변경
+ *   [3] 제목 항상 표시 (이미지 실패 시에도 카드 유지)
  * v4.6.1 변경:
  *   [1] 독립 사진갤러리 페이지 (라우트: gallery) 추가
  *   [2] 사이드바/하단탭에 사진갤러리 메뉴 추가
@@ -187,14 +191,28 @@ function tblEmpty(msg){ return '<tr><td colspan="20"><div class="empty"><div cla
 function errHtml(msg){ return '<div class="empty" style="padding:60px 20px"><div class="empty-icon">⚠️</div><div class="empty-title">데이터 로드 실패</div><div class="empty-desc" style="color:var(--red)">'+esc(msg||'')+'</div><div class="empty-desc" style="margin-top:8px">config.js의 API_URL을 확인하세요.</div></div>'; }
 
 /* ─── 이미지 URL 정규화 (Google Drive 공유 링크 자동 변환) ─── */
+/* [v4.6.2] thumbnail 방식으로 변경 — uc?export=view보다 안정적 */
 function normalizeImageUrl(url) {
   if (!url) return '';
   var s = String(url).trim();
   if (!s) return '';
-  // https://drive.google.com/file/d/파일ID/view... → 직접 표시 URL로 변환
-  var m = s.match(/\/d\/([^/\?&]+)/);
-  if (m && m[1]) return 'https://drive.google.com/uc?export=view&id=' + m[1];
-  // 이미 uc?export=view 형식이면 그대로
+
+  /* 패턴 1: /file/d/파일ID/view 형식 */
+  var m1 = s.match(/\/d\/([^/\?&]+)/);
+  if (m1 && m1[1]) {
+    return 'https://drive.google.com/thumbnail?id=' + m1[1] + '&sz=w1200';
+  }
+
+  /* 패턴 2: ?id=파일ID 또는 &id=파일ID 형식 */
+  var m2 = s.match(/[?&]id=([^&]+)/);
+  if (m2 && m2[1]) {
+    return 'https://drive.google.com/thumbnail?id=' + m2[1] + '&sz=w1200';
+  }
+
+  /* 패턴 3: 이미 thumbnail 형식이면 그대로 */
+  if (s.indexOf('thumbnail?id=') !== -1) return s;
+
+  /* 그 외: 원본 반환 */
   return s;
 }
 
@@ -1036,8 +1054,9 @@ function buildGalleryPage(photos) {
     return '<div class="gal-highlight-card" data-gal-idx="' + i + '">' +
       '<div class="gal-hl-img-wrap">' +
       '<img class="gal-hl-img" src="' + esc(imgUrl) + '" alt="' + esc(p.title) + '" ' +
-      'loading="lazy" onerror="this.closest(\'.gal-highlight-card\').style.display=\'none\'">' +
+      'loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'none\';this.parentNode.classList.add(\'img-error\')">' +
       '<div class="ep-overlay"><span class="ep-zoom-icon">🔍</span></div>' +
+      '<div class="img-error-msg">📷 사진을 불러올 수 없습니다.<br><span>Google Drive 공유 권한을 확인해 주세요.</span></div>' +
       '</div>' +
       '<div class="gal-hl-info">' +
       '<div class="gal-hl-title">' + esc(p.title || '') + '</div>' +
@@ -1070,10 +1089,11 @@ function buildGalleryPage(photos) {
       return '<div class="event-photo-card gal-card" data-gal-idx="' + globalIdx + '">' +
         '<div class="event-photo-img-wrap">' +
         '<img class="event-photo-img" src="' + esc(imgUrl) + '" alt="' + esc(p.title) + '" ' +
-        'loading="lazy" onerror="this.closest(\'.gal-card\').style.display=\'none\'">' +
+        'loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'none\';this.parentNode.classList.add(\'img-error\')">' +
         '<div class="ep-overlay"><span class="ep-zoom-icon">🔍</span></div>' +
+        '<div class="img-error-msg">📷 사진을 불러올 수 없습니다.<br><span>Google Drive 공유 권한을 확인해 주세요.</span></div>' +
         '</div>' +
-        (p.title      ? '<div class="event-photo-title">'  + esc(p.title)      + '</div>' : '') +
+        '<div class="event-photo-title">'  + esc(p.title || '(제목 없음)') + '</div>' +
         (p.event_name ? '<div class="gal-card-event">📅 '  + esc(p.event_name) + '</div>' : '') +
         (p.photo_date ? '<div class="event-photo-date">'   + esc(p.photo_date) + '</div>' : '') +
         (p.caption    ? '<div class="event-photo-caption">' + esc(p.caption)   + '</div>' : '') +
@@ -1155,10 +1175,11 @@ function renderEventPhotos(sec, photos, eventName) {
     return '<div class="event-photo-card" data-photo-idx="' + i + '">' +
       '<div class="event-photo-img-wrap">' +
       '<img class="event-photo-img" src="' + esc(imgUrl) + '" alt="' + esc(p.title) + '" ' +
-      'loading="lazy" onerror="this.closest(\'.event-photo-card\').style.display=\'none\'">' +
+      'loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'none\';this.parentNode.classList.add(\'img-error\')">' +
       '<div class="ep-overlay"><span class="ep-zoom-icon">🔍</span></div>' +
+      '<div class="img-error-msg">📷 사진을 불러올 수 없습니다.<br><span>Google Drive 공유 권한을 확인해 주세요.</span></div>' +
       '</div>' +
-      (p.title   ? '<div class="event-photo-title">'  + esc(p.title)   + '</div>' : '') +
+      '<div class="event-photo-title">'  + esc(p.title || '(제목 없음)') + '</div>' +
       (p.photo_date ? '<div class="event-photo-date">' + esc(p.photo_date) + '</div>' : '') +
       (p.caption ? '<div class="event-photo-caption">' + esc(p.caption) + '</div>' : '') +
       '</div>';

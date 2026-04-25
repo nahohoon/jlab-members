@@ -1044,3 +1044,48 @@ html, body {
   .gal-hl-img-wrap            { aspect-ratio: 3 / 2; }
   .event-photo-img-wrap       { aspect-ratio: 3 / 2; }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   [v4.6.2] 이미지 로딩 실패 오류 표시 스타일
+   ═══════════════════════════════════════════════════════════ */
+
+/* 이미지 래퍼가 오류 상태일 때 */
+.event-photo-img-wrap.img-error,
+.gal-hl-img-wrap.img-error {
+  background: var(--gr100) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 100px;
+}
+
+/* 오류 문구 — 기본 숨김, .img-error 클래스가 붙으면 표시 */
+.img-error-msg {
+  display: none;
+  text-align: center;
+  padding: 16px 12px;
+  font-size: .76rem;
+  color: var(--gr500);
+  line-height: 1.6;
+  word-break: keep-all;
+}
+.img-error-msg span {
+  font-size: .7rem;
+  color: var(--gr400);
+}
+.event-photo-img-wrap.img-error .img-error-msg,
+.gal-hl-img-wrap.img-error .img-error-msg {
+  display: block !important;
+}
+
+/* 카드 자체는 절대 숨기지 않음 */
+.event-photo-card,
+.gal-highlight-card,
+.gal-card {
+  display: block !important;  /* 강제 표시 — onerror로 숨겨지지 않도록 */
+}
+
+/* 모바일 오류 문구 */
+@media (max-width: 600px) {
+  .img-error-msg { font-size: .72rem; padding: 12px 8px; }
+}
