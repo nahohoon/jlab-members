@@ -608,3 +608,113 @@
     font-size: .85rem !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   J_LAB v4.3 사용성 개선 패치 — style_additions.css
+   1. 공지사항 글씨 추가 확대 (PC 18px+, 모바일 16px+)
+   2. 행사 상세 목록으로 버튼 가독성 강화
+   3. 모바일 빠른 실행 회비관리 숨김 (3개만 표시)
+   4. 공지사항 카드 여백 확대
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 1. 공지사항 글씨 추가 확대 (v4.3) ── */
+
+/* PC: 제목 19px, 본문 17px */
+.notice-title {
+  font-size: 1.187rem !important;   /* 약 19px (16px base) */
+  font-weight: 700 !important;
+  color: var(--n800) !important;
+  line-height: 1.5 !important;
+  letter-spacing: -.01em;
+}
+
+.notice-body {
+  font-size: 1.0625rem !important;  /* 17px */
+  color: var(--gr600) !important;
+  line-height: 1.8 !important;
+}
+
+.notice-date {
+  font-size: .82rem !important;
+}
+
+/* 공지사항 카드 여백 확대 */
+.notice-card {
+  padding: 20px 22px !important;
+}
+
+/* 모바일: 제목 16px, 본문 15px */
+@media (max-width: 900px) {
+  .notice-title {
+    font-size: 1rem !important;     /* 16px */
+    line-height: 1.5 !important;
+  }
+  .notice-body {
+    font-size: .9375rem !important; /* 15px */
+    line-height: 1.75 !important;
+  }
+  .notice-card {
+    padding: 16px 18px !important;
+  }
+}
+
+/* ── 2. 행사 상세 "← 목록으로" 버튼 가독성 강화 (v4.3) ── */
+
+/* 기본 상태: 네이비 배경 위에서 골드 테두리+글씨로 확실히 노출 */
+.ev-detail-hdr .btn,
+.ev-detail-hdr .btn-outline,
+.ev-detail-hdr button.btn-outline,
+.ev-detail-hdr button[onclick="closeEventDetail()"] {
+  color: #f5d478 !important;                  /* 골드 글씨 */
+  border: 2px solid #c9a040 !important;       /* 골드 테두리 */
+  background: rgba(201,160,64,.14) !important;/* 골드 반투명 배경 */
+  padding: 9px 18px !important;
+  font-size: .86rem !important;
+  font-weight: 700 !important;
+  border-radius: 8px !important;
+  letter-spacing: .02em;
+  cursor: pointer;
+  transition: all .2s ease;
+  display: inline-block;
+}
+
+.ev-detail-hdr .btn:hover,
+.ev-detail-hdr .btn-outline:hover,
+.ev-detail-hdr button.btn-outline:hover,
+.ev-detail-hdr button[onclick="closeEventDetail()"]:hover {
+  background: #c9a040 !important;             /* 호버: 골드 채우기 */
+  color: var(--n950) !important;              /* 호버: 네이비 글씨 */
+  border-color: #c9a040 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(201,160,64,.35);
+}
+
+/* ── 3. 모바일 빠른 실행 — 회비관리 숨김, 3개 배치 (v4.3) ── */
+
+/* 900px 이하에서 회비관리(.qb-fees-btn) 숨김 */
+@media (max-width: 900px) {
+  .qb-fees-btn {
+    display: none !important;
+  }
+
+  /* 3개만 남으므로 grid를 3열로 고정 */
+  .quick-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+
+/* ── 4. 기타 미세 조정 ── */
+
+/* 대시보드 인사말 폰트 살짝 강조 */
+.dash-greeting h2 {
+  font-size: 1.15rem !important;
+  font-weight: 700 !important;
+  color: var(--n900) !important;
+  line-height: 1.4 !important;
+}
+
+@media (max-width: 600px) {
+  .dash-greeting h2 {
+    font-size: 1.05rem !important;
+  }
+}

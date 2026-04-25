@@ -24,6 +24,7 @@ var S = {
   notices     : [],
   sponsorNotices: [],
   currentEvent: null,         // { id, name, date, venue }
+  currentAttendList: [],      // 현재 행사 참석 목록 (index 기반 저장에 사용)
   filters     : { q:'', filter:'all', gradYear:'', region:'' }
 };
 
@@ -106,8 +107,19 @@ function payStatusBadge(s) {
 
 function parseEventDate(s) {
   if (!s) return null;
-  var c = String(s).replace(/년\s*/g,'-').replace(/월\s*/g,'-').replace(/일/g,'').replace(/\./g,'-').replace(/\s+/g,'').replace(/-+$/,'');
-  var d = new Date(c);
+  // GAS에서 Date 객체로 넘어온 경우 그대로 반환
+  if (s instanceof Date) return isNaN(s.getTime()) ? null : s;
+  var str = String(s).trim();
+  if (!str) return null;
+  // 직접 파싱 시도
+  var d = new Date(str);
+  if (!isNaN(d.getTime())) return d;
+  // 한국어 형식 정리
+  var c = str
+    .replace(/년\s*/g,'-').replace(/월\s*/g,'-').replace(/일.*/g,'')
+    .replace(/\./g,'-').replace(/\//g,'-')
+    .replace(/\s+/g,'-').replace(/-{2,}/g,'-').replace(/-$/,'').trim();
+  d = new Date(c);
   return isNaN(d.getTime()) ? null : d;
 }
 function dDayTag(dateStr) {
@@ -165,16 +177,16 @@ var _tickerTimer = null;
 var _tickerAnim  = null;
 
 function buildTicker(notices) {
-  // is_active=Y인 notice_message 배열
-  var msgs = notices
-    .filter(function(n){ return String(n.is_active||'').toUpperCase()==='Y'; })
-    .map(function(n){ return n.notice_message || ''; })
-    .filter(function(m){ return m.trim() !== ''; });
+  // is_active 관계없이 notice_message가 있는 항목 모두 사용
+  // (Code.gs에서 이미 is_active=Y만 반환)
+  var msgs = (notices || [])
+    .map(function(n){ return String(n.notice_message || '').trim(); })
+    .filter(function(m){ return m !== ''; });
 
   if (!msgs.length) return '';
 
-  // 여러 개를 구분자(★)로 연결
-  var combined = msgs.join('　　★　　');
+  // 여러 개를 구분자(★)로 연결 — esc() 적용 후 HTML entity 복원
+  var combined = msgs.join('　　　★　　　');
 
   return '<div id="sponsorTickerWrap" class="ticker-wrap">' +
     '<div class="ticker-label">🎉 찬조 감사</div>' +
@@ -185,31 +197,47 @@ function buildTicker(notices) {
 }
 
 function startTicker() {
-  var track = document.querySelector('.ticker-track');
-  var text  = $id('tickerText');
-  if (!track || !text) return;
+  // DOM 렌더 완료 후 실행 보장 — 최대 10회 재시도
+  var attempts = 0;
+  function tryStart() {
+    var track = document.querySelector('.ticker-track');
+    var text  = $id('tickerText');
+    if (!track || !text) return;
 
-  // CSS 애니메이션 방식 — 텍스트 너비 측정 후 keyframe 주입
-  var textW = text.scrollWidth;
-  var trackW = track.clientWidth;
-  var totalDist = textW + trackW;
-  var speed = 80; // px/sec
-  var duration = Math.round(totalDist / speed);
+    var textW  = text.scrollWidth;
+    var trackW = track.offsetWidth || track.clientWidth;
 
-  // 스타일 주입
-  var styleId = 'ticker-keyframe-style';
-  var existing = document.getElementById(styleId);
-  if (existing) existing.remove();
-  var style = document.createElement('style');
-  style.id = styleId;
-  style.textContent =
-    '@keyframes tickerScroll {' +
-    '  0%   { transform: translateX(' + trackW + 'px); }' +
-    '  100% { transform: translateX(-' + textW + 'px); }' +
-    '}';
-  document.head.appendChild(style);
+    // scrollWidth가 0이면 아직 렌더 안됨 → 재시도
+    if (textW === 0 && attempts < 10) {
+      attempts++;
+      setTimeout(tryStart, 150);
+      return;
+    }
+    if (textW === 0) return; // 포기
 
-  text.style.animation = 'tickerScroll ' + duration + 's linear infinite';
+    var speed    = 80; // px/sec
+    var duration = Math.max(5, Math.round((textW + trackW) / speed));
+
+    var styleId  = 'ticker-keyframe-style';
+    var existing = document.getElementById(styleId);
+    if (existing) existing.remove();
+
+    var style = document.createElement('style');
+    style.id  = styleId;
+    style.textContent =
+      '@keyframes tickerScroll {' +
+      '  0%   { transform: translateX(' + trackW + 'px); }' +
+      '  100% { transform: translateX(-' + textW  + 'px); }' +
+      '}';
+    document.head.appendChild(style);
+
+    // 기존 animation 초기화 후 재적용
+    text.style.animation = 'none';
+    // reflow 강제
+    void text.offsetWidth;
+    text.style.animation = 'tickerScroll ' + duration + 's linear infinite';
+  }
+  setTimeout(tryStart, 200);
 }
 
 /* ═══════════════════════════════════════════════
@@ -287,12 +315,12 @@ function renderDashboard() {
         '</div>';
     }
 
-    /* ── 빠른 실행 ── */
+    /* ── 빠른 실행 (모바일: 회비관리 숨김, 3개 노출) ── */
     var quickHtml =
       '<div class="quick-grid">' +
       qBtn('👥','회원 검색','members') +
       qBtn('📅','행사 관리','events') +
-      qBtn('💰','회비 관리','fees') +
+      qBtn('💰','회비 관리','fees', 'qb-fees-btn') +
       qBtn('⚠️','미납 현황','unpaid') +
       '</div>';
 
@@ -358,7 +386,7 @@ function renderDashboard() {
     /* ── 최종 렌더 ── */
     setContent(
       '<div class="dash-greeting">' +
-      '<h2>안녕하세요, <span class="dash-org">'+esc(CFG.ORG_NAME||'J_LAB')+'</span></h2>' +
+      '<h2>안녕하세요, <span class="dash-org">J_LAB 회원여러분</span>. 화이팅^^</h2>' +
       '<p>오늘의 운영 현황입니다.</p>' +
       '</div>' +
       tickerHtml +
@@ -370,16 +398,17 @@ function renderDashboard() {
       desktopSection
     );
 
-    // 전광판 애니메이션 시작
+    // 전광판 애니메이션 시작 (DOM 렌더 후)
     if (sponsorNotices.length) {
-      setTimeout(startTicker, 100);
+      startTicker();
     }
   })
   .catch(function(e){ setContent(errHtml(e.message)); });
 }
 
-function qBtn(icon, label, page) {
-  return '<button class="quick-btn" onclick="navigate(\''+page+'\')">' +
+function qBtn(icon, label, page, extraCls) {
+  var cls = 'quick-btn' + (extraCls ? ' ' + extraCls : '');
+  return '<button class="'+cls+'" onclick="navigate(\''+page+'\')">' +
     '<span class="qb-icon">'+icon+'</span><span class="qb-label">'+label+'</span></button>';
 }
 function mStat(label, num, unit, cls) {
@@ -645,41 +674,44 @@ function openEventDetail(eventId, eventName, eventDate, eventVenue) {
 }
 
 function renderEventDetail(sec, d) {
-  var list = d.attendance || [];
-  var total = list.length;
-  var attend  = list.filter(function(a){ return a.attend_status === '참석'; }).length;
-  var absent  = list.filter(function(a){ return a.attend_status === '불참'; }).length;
-  var undecided = list.filter(function(a){ return a.attend_status === '미정'; }).length;
-  var paid    = list.filter(function(a){ return a.payment_status === '납부'; }).length;
-  var unpaid  = list.filter(function(a){ return a.payment_status === '미납'; }).length;
-  var exempt  = list.filter(function(a){ return a.payment_status === '면제'; }).length;
+  // ── 전역 참석 목록 저장 (인덱스 기반 저장에 사용) ──
+  S.currentAttendList = d.attendance || [];
+  var list = S.currentAttendList;
 
+  var total     = list.length;
+  var attend    = list.filter(function(a){ return a.attend_status  === '참석'; }).length;
+  var absent    = list.filter(function(a){ return a.attend_status  === '불참'; }).length;
+  var undecided = list.filter(function(a){ return a.attend_status  === '미정'; }).length;
+  var paid      = list.filter(function(a){ return a.payment_status === '납부'; }).length;
+  var unpaid    = list.filter(function(a){ return a.payment_status === '미납'; }).length;
+  var exempt    = list.filter(function(a){ return a.payment_status === '면제'; }).length;
+
+  // ── 버튼 onclick에는 인덱스(숫자)만 전달 → 인코딩 문제 완전 제거 ──
   var rows = list.map(function(a, idx) {
-    var safeId = 'ea_' + idx;
-    return '<div class="ea-row" id="'+safeId+'">' +
+    return '<div class="ea-row" id="ea_'+idx+'">' +
       '<div class="ea-member-info">' +
       '<div class="ea-name">'+esc(a.member_name||'—')+'</div>' +
       '<div class="ea-meta">'+(a.generation ? a.generation+'기' : '')+(a.phone ? ' · '+esc(fmtPhone(a.phone)) : '')+'</div>' +
       '</div>' +
       '<div class="ea-status-col">' +
       '<div class="ea-status-lbl">참석</div>' +
-      '<div class="ea-btn-group" id="attend-grp-'+safeId+'">' +
-      attendBtn(safeId, a, '참석') +
-      attendBtn(safeId, a, '불참') +
-      attendBtn(safeId, a, '미정') +
+      '<div class="ea-btn-group" id="attend-grp-'+idx+'">' +
+      attendBtn(idx, a, '참석') +
+      attendBtn(idx, a, '불참') +
+      attendBtn(idx, a, '미정') +
       '</div>' +
       '</div>' +
       '<div class="ea-status-col">' +
       '<div class="ea-status-lbl">납부</div>' +
-      '<div class="ea-btn-group" id="pay-grp-'+safeId+'">' +
-      payBtn(safeId, a, '납부') +
-      payBtn(safeId, a, '미납') +
-      payBtn(safeId, a, '면제') +
+      '<div class="ea-btn-group" id="pay-grp-'+idx+'">' +
+      payBtn(idx, a, '납부') +
+      payBtn(idx, a, '미납') +
+      payBtn(idx, a, '면제') +
       '</div>' +
       '</div>' +
       '<div class="ea-memo-col">' +
-      '<input class="ea-memo-input" id="memo-'+safeId+'" type="text" placeholder="메모..." value="'+esc(a.memo||'')+'" ' +
-      'onchange="saveMemo(\''+safeId+'\',\''+esc(d.event_id)+'\',\''+esc(d.event_name)+'\',\''+esc(a.member_id)+'\',\''+esc(a.member_name)+'\',\''+esc(a.generation)+'\',\''+esc(a.phone)+'\',this.value)"/>' +
+      '<input class="ea-memo-input" id="memo-'+idx+'" type="text" placeholder="메모..." value="'+esc(a.memo||'')+'" ' +
+      'onchange="saveMemo('+idx+',this.value)"/>' +
       '</div>' +
       '</div>';
   }).join('');
@@ -725,92 +757,110 @@ function evStat(label, num, color) {
     '</div>';
 }
 
-function attendBtn(safeId, a, status) {
+/* ── 인덱스 기반 버튼 (onclick에 숫자 인덱스만 전달) ── */
+function attendBtn(idx, a, status) {
   var isActive = (a.attend_status === status);
-  return '<button class="ea-status-btn'+(isActive?' ea-btn-active-'+getAttendClass(status):'')+'" ' +
-    'id="attend-btn-'+safeId+'-'+status+'" ' +
-    'onclick="setAttendStatus(\''+safeId+'\',this,\'attend\',\''+status+'\',' +
-    '\''+esc(a.member_id)+'\',\''+esc(a.member_name)+'\',\''+esc(a.generation)+'\',\''+esc(a.phone)+'\')">' +
-    status +
-    '</button>';
+  return '<button class="ea-status-btn'+(isActive?' ea-btn-active-'+getAttendClass(status):''+'')+'" ' +
+    'onclick="setAttendStatus('+idx+',this,\''+status+'\')">' +
+    status + '</button>';
 }
-function payBtn(safeId, a, status) {
+function payBtn(idx, a, status) {
   var isActive = (a.payment_status === status);
-  return '<button class="ea-status-btn'+(isActive?' ea-btn-active-'+getPayClass(status):'')+'" ' +
-    'id="pay-btn-'+safeId+'-'+status+'" ' +
-    'onclick="setPayStatus(\''+safeId+'\',this,\'pay\',\''+status+'\',' +
-    '\''+esc(a.member_id)+'\',\''+esc(a.member_name)+'\',\''+esc(a.generation)+'\',\''+esc(a.phone)+'\')">' +
-    status +
-    '</button>';
+  return '<button class="ea-status-btn'+(isActive?' ea-btn-active-'+getPayClass(status):''+'')+'" ' +
+    'onclick="setPayStatus('+idx+',this,\''+status+'\')">' +
+    status + '</button>';
 }
 function getAttendClass(s) { return s==='참석'?'attend':s==='불참'?'absent':'undecided'; }
 function getPayClass(s)    { return s==='납부'?'paid':s==='면제'?'exempt':'unpaid'; }
 
-/* 참석 상태 버튼 클릭 */
-function setAttendStatus(safeId, btn, type, status, memberId, memberName, generation, phone) {
-  if (!S.currentEvent) return;
-  var grp = $id('attend-grp-'+safeId);
+/**
+ * [v4.3] 인덱스 기반 저장 — onclick에서 인덱스(숫자)만 받아
+ * S.currentAttendList[idx]에서 member_id 등 실제 데이터를 조회
+ * → 한국어/특수문자 포함 이름도 인코딩 문제 없이 전달
+ */
+function setAttendStatus(idx, btn, status) {
+  if (!S.currentEvent || !S.currentAttendList) {
+    toast('행사 정보가 없습니다. 새로고침 후 다시 시도해 주세요.', 'err'); return;
+  }
+  var a = S.currentAttendList[idx];
+  if (!a) { toast('회원 정보를 찾을 수 없습니다.', 'err'); return; }
+
+  // UI 즉시 업데이트
+  var grp = $id('attend-grp-'+idx);
   if (grp) {
-    grp.querySelectorAll('.ea-status-btn').forEach(function(b){
-      b.className = 'ea-status-btn';
-    });
+    grp.querySelectorAll('.ea-status-btn').forEach(function(b){ b.className = 'ea-status-btn'; });
     btn.className = 'ea-status-btn ea-btn-active-'+getAttendClass(status);
   }
+  // 로컬 상태 반영 (다음 저장 시 유효)
+  a.attend_status = status;
+
   btn.textContent = '저장중…'; btn.disabled = true;
+  if (!a.member_id) { toast('저장 실패: member_id 누락 (MEMBER_MASTER 회원ID 컬럼 확인)', 'err'); btn.textContent = status; btn.disabled = false; return; }
+  if (!S.currentEvent.id) { toast('저장 실패: event_id 누락', 'err'); btn.textContent = status; btn.disabled = false; return; }
+
   API.saveEventAttend({
-    event_id: S.currentEvent.id,
-    event_name: S.currentEvent.name,
-    member_id: memberId,
-    member_name: memberName,
-    generation: generation,
-    phone: phone,
+    event_id:     S.currentEvent.id,
+    event_name:   S.currentEvent.name,
+    member_id:    a.member_id,
+    member_name:  a.member_name,
+    generation:   a.generation,
+    phone:        a.phone,
     attend_status: status
   }).then(function(r){
     btn.textContent = status; btn.disabled = false;
-    if (!r.success) { toast('저장 실패: '+(r.error||''),'err'); return; }
-    toast(memberName+' — 참석: '+status, 'ok');
-  }).catch(function(e){ btn.textContent = status; btn.disabled = false; toast(e.message,'err'); });
+    if (!r.success) { toast('저장 실패: '+(r.error||'알 수 없는 오류'), 'err'); return; }
+    toast(a.member_name+' 참석: '+status+' ✓', 'ok');
+  }).catch(function(e){ btn.textContent = status; btn.disabled = false; toast('저장 오류: '+e.message, 'err'); });
 }
 
-/* 납부 상태 버튼 클릭 */
-function setPayStatus(safeId, btn, type, status, memberId, memberName, generation, phone) {
-  if (!S.currentEvent) return;
-  var grp = $id('pay-grp-'+safeId);
+function setPayStatus(idx, btn, status) {
+  if (!S.currentEvent || !S.currentAttendList) {
+    toast('행사 정보가 없습니다. 새로고침 후 다시 시도해 주세요.', 'err'); return;
+  }
+  var a = S.currentAttendList[idx];
+  if (!a) { toast('회원 정보를 찾을 수 없습니다.', 'err'); return; }
+
+  var grp = $id('pay-grp-'+idx);
   if (grp) {
-    grp.querySelectorAll('.ea-status-btn').forEach(function(b){
-      b.className = 'ea-status-btn';
-    });
+    grp.querySelectorAll('.ea-status-btn').forEach(function(b){ b.className = 'ea-status-btn'; });
     btn.className = 'ea-status-btn ea-btn-active-'+getPayClass(status);
   }
+  a.payment_status = status;
+
   btn.textContent = '저장중…'; btn.disabled = true;
+  if (!a.member_id) { toast('저장 실패: member_id 누락', 'err'); btn.textContent = status; btn.disabled = false; return; }
+
   API.saveEventAttend({
-    event_id: S.currentEvent.id,
-    event_name: S.currentEvent.name,
-    member_id: memberId,
-    member_name: memberName,
-    generation: generation,
-    phone: phone,
+    event_id:      S.currentEvent.id,
+    event_name:    S.currentEvent.name,
+    member_id:     a.member_id,
+    member_name:   a.member_name,
+    generation:    a.generation,
+    phone:         a.phone,
     payment_status: status
   }).then(function(r){
     btn.textContent = status; btn.disabled = false;
-    if (!r.success) { toast('저장 실패: '+(r.error||''),'err'); return; }
-    toast(memberName+' — 납부: '+status, 'ok');
-  }).catch(function(e){ btn.textContent = status; btn.disabled = false; toast(e.message,'err'); });
+    if (!r.success) { toast('저장 실패: '+(r.error||'알 수 없는 오류'), 'err'); return; }
+    toast(a.member_name+' 납부: '+status+' ✓', 'ok');
+  }).catch(function(e){ btn.textContent = status; btn.disabled = false; toast('저장 오류: '+e.message, 'err'); });
 }
 
-/* 메모 저장 */
-function saveMemo(safeId, eventId, eventName, memberId, memberName, generation, phone, memo) {
+function saveMemo(idx, memo) {
+  if (!S.currentEvent || !S.currentAttendList) return;
+  var a = S.currentAttendList[idx];
+  if (!a || !a.member_id) { toast('메모 저장 실패: 회원 정보 없음', 'err'); return; }
+  a.memo = memo;
   API.saveEventAttend({
-    event_id: eventId,
-    event_name: eventName,
-    member_id: memberId,
-    member_name: memberName,
-    generation: generation,
-    phone: phone,
-    memo: memo
+    event_id:    S.currentEvent.id,
+    event_name:  S.currentEvent.name,
+    member_id:   a.member_id,
+    member_name: a.member_name,
+    generation:  a.generation,
+    phone:       a.phone,
+    memo:        memo
   }).then(function(r){
-    if (r.success) toast(memberName+' 메모 저장 완료', 'ok');
-    else toast('메모 저장 실패','err');
+    if (r.success) toast(a.member_name+' 메모 저장 완료', 'ok');
+    else toast('메모 저장 실패: '+(r.error||''), 'err');
   }).catch(function(e){ toast(e.message,'err'); });
 }
 
@@ -819,6 +869,7 @@ function closeEventDetail() {
   var titleEl = $id('pageTitle'); if(titleEl) titleEl.textContent = '행사관리';
   var bcEl    = $id('pageBc');    if(bcEl)    bcEl.textContent    = '홈 / 행사관리';
   S.currentEvent = null;
+  S.currentAttendList = [];
   buildEventsPage();
 }
 
