@@ -492,3 +492,119 @@
     font-size: .73rem;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   J_LAB v4.2 안정화 패치 — 보정 스타일
+   1. 공지사항 글씨 크기 보정
+   2. 행사 상세 뒤로가기 버튼 가독성
+   3. LED 전광판 안정화
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 1. 공지사항 글씨 크기 보정 (style.css 오버라이드) ── */
+.notice-title {
+  font-size: 1rem !important;         /* 15px — 기존 .88rem(13.2px)에서 확대 */
+  font-weight: 700 !important;
+  color: var(--n800) !important;
+  line-height: 1.45 !important;
+}
+
+.notice-body {
+  font-size: .875rem !important;      /* 13.1px — 기존 .8rem(12px)에서 확대 */
+  color: var(--gr500) !important;
+  line-height: 1.7 !important;
+}
+
+.notice-date {
+  font-size: .78rem !important;
+}
+
+/* 다가오는 행사 카드 글씨도 보정 */
+.uc-name {
+  font-size: 1rem !important;         /* 기존 .92rem에서 확대 */
+  font-weight: 700 !important;
+}
+
+.uc-meta {
+  font-size: .82rem !important;       /* 기존 .77rem에서 확대 */
+}
+
+/* 모바일에서도 최소 크기 유지 */
+@media (max-width: 600px) {
+  .notice-title {
+    font-size: .95rem !important;     /* 14.25px */
+  }
+  .notice-body {
+    font-size: .85rem !important;     /* 12.75px */
+  }
+  .uc-name {
+    font-size: .95rem !important;
+  }
+}
+
+/* ── 2. 행사 상세 뒤로가기 버튼 가독성 보정 ── */
+
+/* 다크 헤더 배경 위에서 버튼이 보이도록 */
+.ev-detail-hdr .btn-outline {
+  color: var(--g300) !important;              /* 골드 계열 텍스트 */
+  border-color: rgba(201,160,64,.55) !important;
+  background: rgba(201,160,64,.08) !important;
+}
+
+.ev-detail-hdr .btn-outline:hover {
+  color: var(--n900) !important;
+  border-color: var(--g400) !important;
+  background: var(--g400) !important;
+}
+
+/* 모바일에서도 버튼 크기 충분히 확보 */
+.ev-detail-hdr .btn-outline {
+  padding: 8px 16px !important;
+  font-size: .82rem !important;
+  font-weight: 700 !important;
+  letter-spacing: .01em;
+}
+
+/* ── 3. LED 전광판 안정화 ── */
+
+/* 전광판 기본 노출 보장 — display:flex가 끊기지 않도록 */
+.ticker-wrap {
+  display: flex !important;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* 텍스트가 흘러가는 트랙 — overflow 반드시 hidden */
+.ticker-track {
+  overflow: hidden !important;
+  position: relative;
+}
+
+/* 전광판 텍스트 — white-space:nowrap 필수 */
+.ticker-text {
+  white-space: nowrap !important;
+  display: inline-block;
+  will-change: transform;
+}
+
+/* 전광판이 없을 때 공간 차지하지 않음 */
+#sponsorTickerWrap:empty {
+  display: none !important;
+}
+
+/* ── 4. 행사 통계 그리드 모바일 2열 축소 보완 ── */
+@media (max-width: 480px) {
+  .ev-summary-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .ev-stat-num {
+    font-size: 1.2rem !important;
+  }
+  .ev-stat-label {
+    font-size: .65rem !important;
+  }
+  /* 뒤로가기 버튼 모바일 최소 터치 영역 확보 */
+  .ev-detail-hdr .btn-outline {
+    padding: 10px 18px !important;
+    font-size: .85rem !important;
+  }
+}
