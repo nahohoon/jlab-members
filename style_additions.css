@@ -1,17 +1,21 @@
 /* ═══════════════════════════════════════════════════════════
-   J_LAB v4.0 — style_additions.css
-   기존 style.css에 추가/붙여넣기할 신규 스타일
+   J_LAB v4.4 — style_additions.css
    ─────────────────────────────────────────────────────────
-   포함 항목:
-   1. LED 찬조 감사 전광판 (.ticker-wrap)
-   2. 행사 상세 운영 화면 (.ev-detail-*, .ea-*)
-   3. 찬조 문구 등록 모달 (#sponsorModalOverlay)
-   4. 3상태 참석/납부 뱃지 (.b-undecided, .b-exempt)
+   변경 내역 (v4.4):
+   1. LED 찬조 감사 전광판 (유지)
+   2. 행사 상세 운영 화면 (유지)
+   3. 찬조 문구 등록 모달 (유지)
+   4. 3상태 참석/납부 뱃지 (유지)
+   5. [NEW] 대시보드 2컬럼 레이아웃 (.v44-dash-wrap)
+   6. [NEW] 모바일 빠른 실행 3개 고정 정렬
+   7. [NEW] PC 사이드 패널 카드 (.v44-panel-*)
+   8. [NEW] 찬조 요약 카드 (.v44-spon-*)
+   9. [NEW] 공지사항 / 목록으로 버튼 최종 강화
    ═══════════════════════════════════════════════════════════ */
 
 /* ── 1. LED 찬조 감사 전광판 ───────────────────── */
 .ticker-wrap {
-  display: flex;
+  display: flex !important;
   align-items: center;
   background: linear-gradient(90deg, #05100d 0%, #0a1e16 40%, #091a22 100%);
   border: 1px solid rgba(0,255,120,.18);
@@ -22,7 +26,6 @@
   box-shadow: 0 0 18px rgba(0,255,120,.08), inset 0 0 20px rgba(0,0,0,.4);
   position: relative;
 }
-
 .ticker-label {
   flex-shrink: 0;
   background: linear-gradient(135deg, #0d9e55, #0a7a3e);
@@ -38,18 +41,17 @@
   border-right: 1px solid rgba(0,255,120,.2);
   z-index: 2;
 }
-
 .ticker-track {
   flex: 1;
-  overflow: hidden;
+  overflow: hidden !important;
   height: 100%;
   display: flex;
   align-items: center;
   position: relative;
 }
-
 .ticker-text {
-  white-space: nowrap;
+  white-space: nowrap !important;
+  display: inline-block;
   font-size: .84rem;
   font-weight: 600;
   color: #7fffc4;
@@ -58,6 +60,7 @@
   padding: 0 16px;
   will-change: transform;
 }
+#sponsorTickerWrap:empty { display: none !important; }
 
 /* ── 2. 행사 상세 운영 화면 ────────────────────── */
 .ev-detail-loading {
@@ -70,7 +73,6 @@
   font-size: .86rem;
   margin-top: 16px;
 }
-
 .ev-detail-card {
   background: var(--white);
   border-radius: var(--r-lg);
@@ -79,12 +81,10 @@
   margin-top: 20px;
   overflow: hidden;
 }
-
 .ev-detail-hdr {
   background: linear-gradient(135deg, var(--n950), var(--n700));
   padding: 20px 24px;
 }
-
 .ev-detail-title {
   font-size: 1.12rem;
   font-weight: 800;
@@ -92,7 +92,6 @@
   letter-spacing: -.02em;
   margin-bottom: 8px;
 }
-
 .ev-detail-meta {
   display: flex;
   flex-wrap: wrap;
@@ -100,621 +99,209 @@
   font-size: .8rem;
   color: var(--g300);
 }
+.ev-detail-meta span { display: flex; align-items: center; gap: 4px; }
 
-.ev-detail-meta span {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* 요약 통계 */
-.ev-summary-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0;
-  border-bottom: 1px solid var(--gr100);
-}
-
-.ev-stat-item {
-  flex: 1;
-  min-width: 80px;
-  text-align: center;
-  padding: 16px 8px;
-  border-right: 1px solid var(--gr100);
-}
-
-.ev-stat-item:last-child { border-right: none; }
-
-.ev-stat-num {
-  font-size: 1.6rem;
-  font-weight: 800;
-  line-height: 1;
-  color: var(--n800);
-  letter-spacing: -.04em;
-}
-
-.ev-stat-label {
-  font-size: .7rem;
-  color: var(--gr500);
-  margin-top: 4px;
-  font-weight: 500;
-}
-
-/* 회원 리스트 헤더 */
-.ea-list-hdr {
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--gr100);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--gr50);
-}
-
-/* 회원 행 */
-.ea-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.ea-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--gr100);
-  flex-wrap: wrap;
-  transition: background var(--tr);
-}
-
-.ea-row:last-child { border-bottom: none; }
-.ea-row:hover { background: var(--g50); }
-
-.ea-member-info {
-  flex: 0 0 130px;
-  min-width: 100px;
-}
-
-.ea-name {
-  font-size: .88rem;
-  font-weight: 700;
-  color: var(--n900);
-  line-height: 1.3;
-}
-
-.ea-meta {
-  font-size: .72rem;
-  color: var(--gr400);
-  margin-top: 2px;
-}
-
-.ea-status-col {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
-  flex: 1;
-  min-width: 140px;
-}
-
-.ea-status-lbl {
-  font-size: .66rem;
-  font-weight: 700;
-  color: var(--gr400);
-  text-transform: uppercase;
-  letter-spacing: .06em;
-}
-
-/* 3-상태 버튼 그룹 */
-.ea-btn-group {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
-.ea-status-btn {
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: .78rem;
-  font-weight: 600;
-  border: 1.5px solid var(--gr200);
-  background: var(--gr50);
-  color: var(--gr600);
-  cursor: pointer;
-  transition: all var(--tr);
-  white-space: nowrap;
-}
-
-.ea-status-btn:hover {
-  border-color: var(--n500);
-  background: var(--b50);
-  color: var(--n700);
-  transform: translateY(-1px);
-}
-
-.ea-status-btn:disabled {
-  opacity: .55;
-  cursor: default;
-  transform: none;
-}
-
-/* 활성 상태 색상 */
-.ea-btn-active-attend {
-  background: linear-gradient(135deg, #15803d, #16a34a) !important;
-  border-color: transparent !important;
-  color: var(--white) !important;
-  box-shadow: 0 2px 8px rgba(21,128,61,.3);
-}
-
-.ea-btn-active-absent {
-  background: linear-gradient(135deg, #dc2626, #b91c1c) !important;
-  border-color: transparent !important;
-  color: var(--white) !important;
-  box-shadow: 0 2px 8px rgba(220,38,38,.3);
-}
-
-.ea-btn-active-undecided {
-  background: linear-gradient(135deg, #d97706, #b45309) !important;
-  border-color: transparent !important;
-  color: var(--white) !important;
-  box-shadow: 0 2px 8px rgba(217,119,6,.3);
-}
-
-.ea-btn-active-paid {
-  background: linear-gradient(135deg, #15803d, #16a34a) !important;
-  border-color: transparent !important;
-  color: var(--white) !important;
-  box-shadow: 0 2px 8px rgba(21,128,61,.3);
-}
-
-.ea-btn-active-unpaid {
-  background: linear-gradient(135deg, #dc2626, #b91c1c) !important;
-  border-color: transparent !important;
-  color: var(--white) !important;
-  box-shadow: 0 2px 8px rgba(220,38,38,.3);
-}
-
-.ea-btn-active-exempt {
-  background: linear-gradient(135deg, var(--n600), var(--n500)) !important;
-  border-color: transparent !important;
-  color: var(--g300) !important;
-  box-shadow: 0 2px 8px rgba(13,31,60,.3);
-}
-
-/* 메모 입력 */
-.ea-memo-col {
-  flex: 0 0 160px;
-  min-width: 120px;
-}
-
-.ea-memo-input {
-  width: 100%;
-  padding: 7px 10px;
-  border: 1.5px solid var(--gr200);
-  border-radius: 8px;
-  font-size: .8rem;
-  color: var(--n800);
-  background: var(--gr50);
-  outline: none;
-  font-family: inherit;
-  transition: border-color var(--tr);
-}
-
-.ea-memo-input:focus {
-  border-color: var(--g400);
-  background: var(--white);
-  box-shadow: 0 0 0 3px rgba(201,160,64,.1);
-}
-
-/* ── 3. 찬조 문구 등록 모달 ────────────────────── */
-#sponsorModalOverlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(5,13,26,.65);
-  backdrop-filter: blur(4px);
-  z-index: 500;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity .22s;
-}
-
-#sponsorModalOverlay.open {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-#sponsorModal {
-  background: var(--white);
-  border-radius: var(--r-xl);
-  width: 100%;
-  max-width: 520px;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: var(--sh3), 0 0 0 1px rgba(201,160,64,.15);
-  transform: translateY(20px) scale(.97);
-  transition: transform .22s cubic-bezier(.34,1.56,.64,1);
-}
-
-#sponsorModalOverlay.open #sponsorModal {
-  transform: translateY(0) scale(1);
-}
-
-.spon-modal-hdr {
-  background: linear-gradient(135deg, var(--n950), var(--n700));
-  padding: 20px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-radius: var(--r-xl) var(--r-xl) 0 0;
-}
-
-.spon-modal-title {
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: var(--white);
-}
-
-.spon-modal-body {
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.spon-form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.spon-form-label {
-  font-size: .75rem;
-  font-weight: 700;
-  color: var(--gr600);
-  text-transform: uppercase;
-  letter-spacing: .04em;
-}
-
-.spon-form-group input,
-.spon-form-group select,
-.spon-form-group textarea {
-  padding: 9px 13px;
-  border: 1.5px solid var(--gr200);
-  border-radius: 8px;
-  font-size: .86rem;
-  color: var(--n800);
-  background: var(--gr50);
-  outline: none;
-  font-family: inherit;
-  transition: border-color var(--tr);
-}
-
-.spon-form-group textarea {
-  min-height: 80px;
-  resize: vertical;
-}
-
-.spon-form-group input:focus,
-.spon-form-group select:focus,
-.spon-form-group textarea:focus {
-  border-color: var(--g400);
-  background: var(--white);
-  box-shadow: 0 0 0 3px rgba(201,160,64,.12);
-}
-
-.spon-form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.spon-modal-footer {
-  padding: 16px 24px;
-  border-top: 1px solid var(--gr100);
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-}
-
-/* ── 4. 추가 뱃지 ───────────────────────────────── */
-.b-undecided {
-  background: var(--amber-bg);
-  color: var(--amber);
-}
-
-.b-exempt {
-  background: var(--b50);
-  color: var(--b500);
-  border: 1px solid var(--b100);
-}
-
-/* ── 5. 반응형 행사 상세 ─────────────────────────── */
-@media (max-width: 900px) {
-  .ev-summary-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-  }
-
-  .ea-row {
-    padding: 12px 14px;
-    gap: 8px;
-  }
-
-  .ea-member-info {
-    flex: 0 0 100%;
-  }
-
-  .ea-status-col {
-    flex: 1;
-    min-width: 110px;
-  }
-
-  .ea-memo-col {
-    flex: 0 0 100%;
-  }
-
-  .ticker-wrap {
-    height: 40px;
-  }
-
-  .ticker-text {
-    font-size: .78rem;
-  }
-}
-
-@media (max-width: 600px) {
-  .ev-summary-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .ev-stat-num {
-    font-size: 1.3rem;
-  }
-
-  .ea-status-btn {
-    padding: 5px 9px;
-    font-size: .73rem;
-  }
-
-  .spon-form-row {
-    grid-template-columns: 1fr;
-  }
-
-  .ticker-label {
-    font-size: .65rem;
-    padding: 0 8px;
-  }
-
-  .ticker-text {
-    font-size: .73rem;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   J_LAB v4.2 안정화 패치 — 보정 스타일
-   1. 공지사항 글씨 크기 보정
-   2. 행사 상세 뒤로가기 버튼 가독성
-   3. LED 전광판 안정화
-   ═══════════════════════════════════════════════════════════ */
-
-/* ── 1. 공지사항 글씨 크기 보정 (style.css 오버라이드) ── */
-.notice-title {
-  font-size: 1rem !important;         /* 15px — 기존 .88rem(13.2px)에서 확대 */
-  font-weight: 700 !important;
-  color: var(--n800) !important;
-  line-height: 1.45 !important;
-}
-
-.notice-body {
-  font-size: .875rem !important;      /* 13.1px — 기존 .8rem(12px)에서 확대 */
-  color: var(--gr500) !important;
-  line-height: 1.7 !important;
-}
-
-.notice-date {
-  font-size: .78rem !important;
-}
-
-/* 다가오는 행사 카드 글씨도 보정 */
-.uc-name {
-  font-size: 1rem !important;         /* 기존 .92rem에서 확대 */
-  font-weight: 700 !important;
-}
-
-.uc-meta {
-  font-size: .82rem !important;       /* 기존 .77rem에서 확대 */
-}
-
-/* 모바일에서도 최소 크기 유지 */
-@media (max-width: 600px) {
-  .notice-title {
-    font-size: .95rem !important;     /* 14.25px */
-  }
-  .notice-body {
-    font-size: .85rem !important;     /* 12.75px */
-  }
-  .uc-name {
-    font-size: .95rem !important;
-  }
-}
-
-/* ── 2. 행사 상세 뒤로가기 버튼 가독성 보정 ── */
-
-/* 다크 헤더 배경 위에서 버튼이 보이도록 */
-.ev-detail-hdr .btn-outline {
-  color: var(--g300) !important;              /* 골드 계열 텍스트 */
-  border-color: rgba(201,160,64,.55) !important;
-  background: rgba(201,160,64,.08) !important;
-}
-
-.ev-detail-hdr .btn-outline:hover {
-  color: var(--n900) !important;
-  border-color: var(--g400) !important;
-  background: var(--g400) !important;
-}
-
-/* 모바일에서도 버튼 크기 충분히 확보 */
-.ev-detail-hdr .btn-outline {
-  padding: 8px 16px !important;
-  font-size: .82rem !important;
-  font-weight: 700 !important;
-  letter-spacing: .01em;
-}
-
-/* ── 3. LED 전광판 안정화 ── */
-
-/* 전광판 기본 노출 보장 — display:flex가 끊기지 않도록 */
-.ticker-wrap {
-  display: flex !important;
-  align-items: center;
-  overflow: hidden;
-}
-
-/* 텍스트가 흘러가는 트랙 — overflow 반드시 hidden */
-.ticker-track {
-  overflow: hidden !important;
-  position: relative;
-}
-
-/* 전광판 텍스트 — white-space:nowrap 필수 */
-.ticker-text {
-  white-space: nowrap !important;
-  display: inline-block;
-  will-change: transform;
-}
-
-/* 전광판이 없을 때 공간 차지하지 않음 */
-#sponsorTickerWrap:empty {
-  display: none !important;
-}
-
-/* ── 4. 행사 통계 그리드 모바일 2열 축소 보완 ── */
-@media (max-width: 480px) {
-  .ev-summary-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-  }
-  .ev-stat-num {
-    font-size: 1.2rem !important;
-  }
-  .ev-stat-label {
-    font-size: .65rem !important;
-  }
-  /* 뒤로가기 버튼 모바일 최소 터치 영역 확보 */
-  .ev-detail-hdr .btn-outline {
-    padding: 10px 18px !important;
-    font-size: .85rem !important;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   J_LAB v4.3 사용성 개선 패치 — style_additions.css
-   1. 공지사항 글씨 추가 확대 (PC 18px+, 모바일 16px+)
-   2. 행사 상세 목록으로 버튼 가독성 강화
-   3. 모바일 빠른 실행 회비관리 숨김 (3개만 표시)
-   4. 공지사항 카드 여백 확대
-   ═══════════════════════════════════════════════════════════ */
-
-/* ── 1. 공지사항 글씨 추가 확대 (v4.3) ── */
-
-/* PC: 제목 19px, 본문 17px */
-.notice-title {
-  font-size: 1.187rem !important;   /* 약 19px (16px base) */
-  font-weight: 700 !important;
-  color: var(--n800) !important;
-  line-height: 1.5 !important;
-  letter-spacing: -.01em;
-}
-
-.notice-body {
-  font-size: 1.0625rem !important;  /* 17px */
-  color: var(--gr600) !important;
-  line-height: 1.8 !important;
-}
-
-.notice-date {
-  font-size: .82rem !important;
-}
-
-/* 공지사항 카드 여백 확대 */
-.notice-card {
-  padding: 20px 22px !important;
-}
-
-/* 모바일: 제목 16px, 본문 15px */
-@media (max-width: 900px) {
-  .notice-title {
-    font-size: 1rem !important;     /* 16px */
-    line-height: 1.5 !important;
-  }
-  .notice-body {
-    font-size: .9375rem !important; /* 15px */
-    line-height: 1.75 !important;
-  }
-  .notice-card {
-    padding: 16px 18px !important;
-  }
-}
-
-/* ── 2. 행사 상세 "← 목록으로" 버튼 가독성 강화 (v4.3) ── */
-
-/* 기본 상태: 네이비 배경 위에서 골드 테두리+글씨로 확실히 노출 */
+/* [v4.4 강화] 행사 상세 목록으로 버튼 — 마우스 없이도 항상 보임 */
 .ev-detail-hdr .btn,
 .ev-detail-hdr .btn-outline,
 .ev-detail-hdr button.btn-outline,
 .ev-detail-hdr button[onclick="closeEventDetail()"] {
-  color: #f5d478 !important;                  /* 골드 글씨 */
-  border: 2px solid #c9a040 !important;       /* 골드 테두리 */
-  background: rgba(201,160,64,.14) !important;/* 골드 반투명 배경 */
-  padding: 9px 18px !important;
-  font-size: .86rem !important;
-  font-weight: 700 !important;
+  display: inline-flex !important;
+  align-items: center;
+  color: #f5d478 !important;
+  border: 2.5px solid #c9a040 !important;
+  background: rgba(201,160,64,.20) !important;
+  padding: 10px 20px !important;
+  font-size: .88rem !important;
+  font-weight: 800 !important;
   border-radius: 8px !important;
   letter-spacing: .02em;
   cursor: pointer;
   transition: all .2s ease;
-  display: inline-block;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(201,160,64,.18);
 }
-
 .ev-detail-hdr .btn:hover,
 .ev-detail-hdr .btn-outline:hover,
 .ev-detail-hdr button.btn-outline:hover,
 .ev-detail-hdr button[onclick="closeEventDetail()"]:hover {
-  background: #c9a040 !important;             /* 호버: 골드 채우기 */
-  color: var(--n950) !important;              /* 호버: 네이비 글씨 */
+  background: #c9a040 !important;
+  color: var(--n950) !important;
   border-color: #c9a040 !important;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(201,160,64,.35);
 }
 
-/* ── 3. 모바일 빠른 실행 — 회비관리 숨김, 3개 배치 (v4.3) ── */
+/* 요약 통계 */
+.ev-summary-grid { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--gr100); }
+.ev-stat-item { flex: 1; min-width: 80px; text-align: center; padding: 16px 8px; border-right: 1px solid var(--gr100); }
+.ev-stat-item:last-child { border-right: none; }
+.ev-stat-num { font-size: 1.6rem; font-weight: 800; line-height: 1; color: var(--n800); letter-spacing: -.04em; }
+.ev-stat-label { font-size: .7rem; color: var(--gr500); margin-top: 4px; font-weight: 500; }
 
-/* 900px 이하에서 회비관리(.qb-fees-btn) 숨김 */
+/* 회원 리스트 */
+.ea-list-hdr { padding: 14px 20px; border-bottom: 1px solid var(--gr100); display: flex; align-items: center; justify-content: space-between; background: var(--gr50); }
+.ea-list { display: flex; flex-direction: column; }
+.ea-row { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--gr100); flex-wrap: wrap; transition: background var(--tr); }
+.ea-row:last-child { border-bottom: none; }
+.ea-row:hover { background: var(--g50); }
+.ea-member-info { flex: 0 0 130px; min-width: 100px; }
+.ea-name { font-size: .88rem; font-weight: 700; color: var(--n900); line-height: 1.3; }
+.ea-meta { font-size: .72rem; color: var(--gr400); margin-top: 2px; }
+.ea-status-col { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; flex: 1; min-width: 140px; }
+.ea-status-lbl { font-size: .66rem; font-weight: 700; color: var(--gr400); text-transform: uppercase; letter-spacing: .06em; }
+.ea-btn-group { display: flex; gap: 4px; flex-wrap: wrap; }
+.ea-status-btn { padding: 6px 12px; border-radius: 20px; font-size: .78rem; font-weight: 600; border: 1.5px solid var(--gr200); background: var(--gr50); color: var(--gr600); cursor: pointer; transition: all var(--tr); white-space: nowrap; }
+.ea-status-btn:hover { border-color: var(--n500); background: var(--b50); color: var(--n700); transform: translateY(-1px); }
+.ea-status-btn:disabled { opacity: .55; cursor: default; transform: none; }
+.ea-btn-active-attend   { background: linear-gradient(135deg,#15803d,#16a34a)!important; border-color:transparent!important; color:var(--white)!important; box-shadow:0 2px 8px rgba(21,128,61,.3); }
+.ea-btn-active-absent   { background: linear-gradient(135deg,#dc2626,#b91c1c)!important; border-color:transparent!important; color:var(--white)!important; box-shadow:0 2px 8px rgba(220,38,38,.3); }
+.ea-btn-active-undecided{ background: linear-gradient(135deg,#d97706,#b45309)!important; border-color:transparent!important; color:var(--white)!important; box-shadow:0 2px 8px rgba(217,119,6,.3); }
+.ea-btn-active-paid     { background: linear-gradient(135deg,#15803d,#16a34a)!important; border-color:transparent!important; color:var(--white)!important; box-shadow:0 2px 8px rgba(21,128,61,.3); }
+.ea-btn-active-unpaid   { background: linear-gradient(135deg,#dc2626,#b91c1c)!important; border-color:transparent!important; color:var(--white)!important; box-shadow:0 2px 8px rgba(220,38,38,.3); }
+.ea-btn-active-exempt   { background: linear-gradient(135deg,var(--n600),var(--n500))!important; border-color:transparent!important; color:var(--g300)!important; box-shadow:0 2px 8px rgba(13,31,60,.3); }
+.ea-memo-col { flex: 0 0 160px; min-width: 120px; }
+.ea-memo-input { width:100%; padding:7px 10px; border:1.5px solid var(--gr200); border-radius:8px; font-size:.8rem; color:var(--n800); background:var(--gr50); outline:none; font-family:inherit; transition:border-color var(--tr); }
+.ea-memo-input:focus { border-color:var(--g400); background:var(--white); box-shadow:0 0 0 3px rgba(201,160,64,.1); }
+
+/* ── 3. 찬조 문구 등록 모달 ────────────────────── */
+#sponsorModalOverlay { position:fixed; inset:0; background:rgba(5,13,26,.65); backdrop-filter:blur(4px); z-index:500; display:flex; align-items:center; justify-content:center; padding:16px; opacity:0; pointer-events:none; transition:opacity .22s; }
+#sponsorModalOverlay.open { opacity:1; pointer-events:auto; }
+#sponsorModal { background:var(--white); border-radius:var(--r-xl); width:100%; max-width:520px; max-height:90vh; overflow-y:auto; box-shadow:var(--sh3),0 0 0 1px rgba(201,160,64,.15); transform:translateY(20px) scale(.97); transition:transform .22s cubic-bezier(.34,1.56,.64,1); }
+#sponsorModalOverlay.open #sponsorModal { transform:translateY(0) scale(1); }
+.spon-modal-hdr { background:linear-gradient(135deg,var(--n950),var(--n700)); padding:20px 24px; display:flex; align-items:center; justify-content:space-between; border-radius:var(--r-xl) var(--r-xl) 0 0; }
+.spon-modal-title { font-size:1.05rem; font-weight:800; color:var(--white); }
+.spon-modal-body { padding:24px; display:flex; flex-direction:column; gap:14px; }
+.spon-form-group { display:flex; flex-direction:column; gap:5px; }
+.spon-form-label { font-size:.75rem; font-weight:700; color:var(--gr600); text-transform:uppercase; letter-spacing:.04em; }
+.spon-form-group input,
+.spon-form-group select,
+.spon-form-group textarea { padding:9px 13px; border:1.5px solid var(--gr200); border-radius:8px; font-size:.86rem; color:var(--n800); background:var(--gr50); outline:none; font-family:inherit; transition:border-color var(--tr); }
+.spon-form-group textarea { min-height:80px; resize:vertical; }
+.spon-form-group input:focus,
+.spon-form-group select:focus,
+.spon-form-group textarea:focus { border-color:var(--g400); background:var(--white); box-shadow:0 0 0 3px rgba(201,160,64,.12); }
+.spon-form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.spon-modal-footer { padding:16px 24px; border-top:1px solid var(--gr100); display:flex; gap:10px; justify-content:flex-end; }
+
+/* ── 4. 뱃지 ── */
+.b-undecided { background:var(--amber-bg); color:var(--amber); }
+.b-exempt    { background:var(--b50); color:var(--b500); border:1px solid var(--b100); }
+
+/* ── 5. [v4.4] 대시보드 2컬럼 레이아웃 ─────────── */
+.v44-dash-wrap { display: block; }
+.v44-main-col  { width: 100%; }
+.v44-side-col  { display: none; }
+
+@media (min-width: 901px) {
+  .v44-dash-wrap {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 24px;
+    align-items: start;
+  }
+  .v44-side-col {
+    display: block !important;
+    position: sticky;
+    top: 80px;
+  }
+}
+
+/* ── 6. [v4.4] PC 사이드 패널 카드 ─────────────── */
+.v44-panel-card { background:var(--white); border:1px solid var(--gr200); border-radius:var(--r-lg); box-shadow:var(--sh1); overflow:hidden; }
+.v44-panel-hdr { display:flex; align-items:center; gap:8px; padding:14px 18px; font-size:.88rem; font-weight:800; color:var(--n800); border-bottom:1px solid var(--gr100); background:var(--gr50); }
+.v44-panel-body { padding:16px 18px; }
+
+/* ── 7. [v4.4] 찬조 요약 카드 ───────────────────── */
+.v44-spon-item { padding:10px 0; border-bottom:1px solid var(--gr100); }
+.v44-spon-item:last-child { border-bottom:none; }
+.v44-spon-name { font-size:.88rem; font-weight:700; color:var(--n800); margin-bottom:3px; }
+.v44-spon-gen  { font-size:.75rem; color:var(--gr400); font-weight:500; }
+.v44-spon-msg  { font-size:.78rem; color:var(--gr500); line-height:1.5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:260px; }
+
+/* ── 8. [v4.4] 모바일 빠른 실행 ─────────────────── */
+.v44-quick { margin-bottom: 18px; }
+
+/* PC: 4열 */
+.v44-quick { grid-template-columns: repeat(4,1fr) !important; }
+
+/* 모바일: 3열, 회비관리 숨김 */
 @media (max-width: 900px) {
-  .qb-fees-btn {
-    display: none !important;
+  .v44-quick {
+    grid-template-columns: repeat(3,1fr) !important;
+    gap: 10px !important;
   }
-
-  /* 3개만 남으므로 grid를 3열로 고정 */
-  .quick-grid {
-    grid-template-columns: repeat(3, 1fr) !important;
+  .v44-quick .quick-btn {
+    padding: 16px 8px !important;
+    min-height: 72px;
   }
+  .v44-quick .qb-icon    { font-size: 1.4rem !important; }
+  .v44-quick .qb-label   { font-size: .74rem !important; }
+  .v44-quick .qb-fees-btn { display: none !important; }
 }
 
-/* ── 4. 기타 미세 조정 ── */
+@media (max-width: 390px) {
+  .v44-quick { gap: 8px !important; }
+  .v44-quick .quick-btn { padding: 13px 4px !important; }
+  .v44-quick .qb-label  { font-size: .68rem !important; }
+}
 
-/* 대시보드 인사말 폰트 살짝 강조 */
-.dash-greeting h2 {
-  font-size: 1.15rem !important;
+/* ── 9. [v4.4] 공지사항 글씨 크기 ───────────────── */
+.notice-title {
+  font-size: 1.1875rem !important;
   font-weight: 700 !important;
-  color: var(--n900) !important;
-  line-height: 1.4 !important;
+  color: var(--n800) !important;
+  line-height: 1.5 !important;
+  letter-spacing: -.01em;
+}
+.notice-body {
+  font-size: 1.0625rem !important;
+  color: var(--gr600) !important;
+  line-height: 1.8 !important;
+}
+.notice-date { font-size: .82rem !important; }
+.uc-name { font-size: 1rem !important; font-weight: 700 !important; }
+.uc-meta { font-size: .82rem !important; }
+
+@media (max-width: 900px) {
+  .notice-title { font-size: 1rem !important; line-height: 1.5 !important; }
+  .notice-body  { font-size: .9375rem !important; line-height: 1.75 !important; }
 }
 
+/* ── 10. 인사말 영역 (PC/모바일 공통) ───────────── */
+.dash-greeting { margin-bottom: 18px; }
+.dash-greeting h2 { font-size: 1.2rem !important; font-weight: 800 !important; color: var(--n900) !important; line-height: 1.35 !important; }
+.dash-greeting p  { font-size: .8rem; color: var(--gr400); margin-top: 3px; }
 @media (max-width: 600px) {
-  .dash-greeting h2 {
-    font-size: 1.05rem !important;
+  .dash-greeting h2 { font-size: 1.06rem !important; }
+}
+
+/* ── 11. 반응형 행사 상세 ─────────────────────────── */
+@media (max-width: 900px) {
+  .ev-summary-grid { display:grid; grid-template-columns:repeat(4,1fr); }
+  .ea-row          { padding:12px 14px; gap:8px; }
+  .ea-member-info  { flex:0 0 100%; }
+  .ea-status-col   { flex:1; min-width:110px; }
+  .ea-memo-col     { flex:0 0 100%; }
+  .ticker-wrap     { height:40px; }
+  .ticker-text     { font-size:.78rem; }
+}
+@media (max-width: 600px) {
+  .ev-summary-grid { grid-template-columns:repeat(3,1fr); }
+  .ev-stat-num     { font-size:1.3rem; }
+  .ea-status-btn   { padding:5px 9px; font-size:.73rem; }
+  .spon-form-row   { grid-template-columns:1fr; }
+  .ticker-label    { font-size:.65rem; padding:0 8px; }
+  .ticker-text     { font-size:.73rem; }
+}
+@media (max-width: 480px) {
+  .ev-summary-grid { grid-template-columns:repeat(2,1fr)!important; }
+  .ev-stat-num     { font-size:1.2rem!important; }
+  .ev-stat-label   { font-size:.65rem!important; }
+  .ev-detail-hdr .btn,
+  .ev-detail-hdr .btn-outline,
+  .ev-detail-hdr button.btn-outline,
+  .ev-detail-hdr button[onclick="closeEventDetail()"] {
+    padding:10px 18px!important; font-size:.85rem!important;
   }
 }
