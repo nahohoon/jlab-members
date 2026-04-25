@@ -1,13 +1,14 @@
 {
-  "name": "J_LAB 회원관리",
+  "name": "J_LAB 회원관리 시스템",
   "short_name": "J_LAB",
-  "description": "J_LAB 회원관리 시스템 — CEO포럼급 프리미엄 CRM",
-  "lang": "ko",
-  "start_url": "./index.html",
+  "description": "J_LAB 회원관리, 행사관리, 회비관리 시스템",
+  "start_url": "./?source=pwa",
+  "scope": "./",
   "display": "standalone",
-  "orientation": "portrait-primary",
-  "theme_color": "#0a1628",
+  "orientation": "portrait",
   "background_color": "#0a1628",
+  "theme_color": "#0a1628",
+  "lang": "ko-KR",
   "icons": [
     {
       "src": "icon-192.png",
@@ -21,9 +22,5 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ],
-  "categories": [
-    "business",
-    "productivity"
   ]
 }
