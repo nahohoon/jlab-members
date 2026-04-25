@@ -300,7 +300,7 @@ function renderDashboard() {
         notices.map(function(n) {
           var imp = isImpY(n.important);
           var imgHtml = n.image_url
-            ? '<img class="notice-img" src="'+esc(normalizeImageUrl(n.image_url))+'" alt="공지 이미지" onerror="this.style.display='none'">'
+            ? '<img class="notice-img" src="'+esc(normalizeImageUrl(n.image_url))+'" alt="공지 이미지" onerror="this.style.display=\'none\'">'
             : '';
           return '<div class="notice-item'+(imp?' notice-imp':'')+'">' +
             (imp ? '<span class="notice-badge">중요</span>' : '') +
@@ -321,7 +321,7 @@ function renderDashboard() {
         '<div class="upcoming-list">' +
         upcoming.map(function(ev) {
           var imgHtml = ev.image_url
-            ? '<img class="event-card-img" src="'+esc(normalizeImageUrl(ev.image_url))+'" alt="행사 이미지" onerror="this.style.display='none'">'
+            ? '<img class="event-card-img" src="'+esc(normalizeImageUrl(ev.image_url))+'" alt="행사 이미지" onerror="this.style.display=\'none\'">'
             : '';
           return '<div class="upcoming-card">' +
             '<div class="uc-top">' +
@@ -376,7 +376,7 @@ function renderDashboard() {
 
     /* ── 7. 미납 배너 ── */
     var unpaidBanner =
-      '<div class="unpaid-banner" onclick="navigate('unpaid')" role="button" tabindex="0">' +
+      '<div class="unpaid-banner" onclick="navigate(\'unpaid\')" role="button" tabindex="0">' +
       '<div class="ub-left">' +
       '<div class="ub-dot"></div>' +
       '<div>' +
