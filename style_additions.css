@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   J_LAB v4.5 — style_additions.css
+   J_LAB v4.5.1 — style_additions.css
    ─────────────────────────────────────────────────────────
    변경 내역 (v4.5):
    1. LED 찬조 감사 전광판 (유지)
@@ -12,6 +12,9 @@
    8. [NEW v4.5] 이미지 표시 스타일 (notice-img, event-card-img)
    9. [FIX v4.5] 목록으로 버튼 가독성 강화
    10. [FIX v4.5] 납부율 바 (.v45-fee-bar-wrap)
+   변경 내역 (v4.5.1):
+   11. [FIX v4.5.1] 빠른 실행 3개 전용 클래스 (.v45-quick-3) — PC/모바일 3열 고정
+   12. [FIX v4.5.1] 공지ID 스타일 (.notice-id) 추가
    ═══════════════════════════════════════════════════════════ */
 
 /* ════════════════════════════════════════════════════
@@ -211,6 +214,16 @@ html, body {
   margin-bottom: 18px;
   box-sizing: border-box;
 }
+/* [v4.5.1] 빠른 실행 3개 전용: PC/모바일 모두 3열 고정, 회비관리 버튼 없음 */
+.v45-quick.v45-quick-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+@media (max-width: 900px) {
+  .v45-quick.v45-quick-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+}
 .v45-quick .quick-btn {
   display: flex;
   flex-direction: column;
@@ -237,7 +250,7 @@ html, body {
 .v45-quick .qb-icon  { font-size: 1.5rem; line-height: 1; }
 .v45-quick .qb-label { font-size: .75rem; font-weight: 700; color: var(--n700); text-align: center; white-space: normal; }
 
-/* 모바일: 3열 고정, 회비관리 숨김 */
+/* 모바일: 3열 고정, 회비관리 숨김 (4열 .v45-quick 하위호환) */
 @media (max-width: 900px) {
   .v45-quick {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
@@ -275,9 +288,20 @@ html, body {
   .quick-btn { min-width: 0 !important; }
 }
 
-/* ── 7. [v4.5 FIX] 공지사항 줄바꿈 정렬 수정 ─── */
+/* ── 7. [v4.5/v4.5.1 FIX] 공지사항 줄바꿈 정렬 수정 ─── */
 /* flex/grid 구조 안에서 좌측 정렬 완전 보장 */
 .notice-list { width: 100%; }
+/* [v4.5.1] 공지ID 스타일 */
+.notice-id {
+  display: block !important;
+  text-align: left !important;
+  font-size: .75rem !important;
+  font-weight: 600 !important;
+  color: var(--gr400) !important;
+  letter-spacing: .04em;
+  margin-bottom: 3px;
+  font-family: monospace, 'Noto Sans KR', sans-serif;
+}
 .notice-item {
   /* 기존 display:flex → block으로 변경해 줄바꿈 정렬 보장 */
   display: block !important;

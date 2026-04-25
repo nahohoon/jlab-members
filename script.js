@@ -1,5 +1,5 @@
 /**
- * J_LAB 회원관리 v4.5 — script.js
+ * J_LAB 회원관리 v4.5.1 — script.js
  * GitHub Pages SPA | Apps Script API 연동
  * ─────────────────────────────────────────────────────────────────
  * v4.5 변경:
@@ -11,6 +11,9 @@
  *   [6] image_url 지원 (NOTICE_MASTER, EVENT_MASTER)
  *   [7] Google Drive 링크 자동 변환 함수 추가
  *   [8] Code.gs와 member_id 복합키 완전 일치 보장
+ * v4.5.1 변경:
+ *   [1] 빠른 실행 메뉴 회비관리 버튼 제거 → 3개만 표시 (PC/모바일 공통)
+ *   [2] 공지사항 카드 세로형 왼쪽 정렬 강화 (공지ID 표시 추가)
  */
 'use strict';
 
@@ -304,6 +307,7 @@ function renderDashboard() {
             : '';
           return '<div class="notice-item'+(imp?' notice-imp':'')+'">' +
             (imp ? '<span class="notice-badge">중요</span>' : '') +
+            (n.id ? '<div class="notice-id">'+esc(n.id)+'</div>' : '') +
             '<div class="notice-title">'+esc(n.title)+'</div>' +
             (n.body ? '<div class="notice-body">'+esc(n.body)+'</div>' : '') +
             imgHtml +
@@ -349,14 +353,13 @@ function renderDashboard() {
         '</div>';
     }
 
-    /* ── 5. 빠른 실행 (v4.5 클래스: v45-quick) ── */
+    /* ── 5. 빠른 실행 (v4.5.1: 3개만 표시, 회비관리 제거) ── */
     var quickHtml =
       '<div class="dash-sec-lbl">⚡ 빠른 실행</div>' +
-      '<div class="v45-quick">' +
+      '<div class="v45-quick v45-quick-3">' +
       qBtn('👥','회원관리','members') +
       qBtn('📅','행사관리','events') +
-      qBtn('⚠️','미납 현황','unpaid') +
-      qBtn('💰','회비관리','fees','qb-fees-btn') +
+      qBtn('⚠️','회비 미납 현황','unpaid') +
       '</div>';
 
     /* ── 6. 운영 요약 미니 카드 + 납부율 바 ── */
