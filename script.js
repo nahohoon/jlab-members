@@ -1,12 +1,15 @@
 /**
- * J_LAB 회원관리 v4.0 — script.js
+ * J_LAB 회원관리 v4.4 — script.js
  * GitHub Pages SPA | Apps Script API 연동
  * ─────────────────────────────────────────────────────────────────
- * v4 추가:
- *   [1] 행사 상세 운영 화면 (3상태 참석/납부 체크, EVENT_ATTEND_V2 연동)
- *   [2] 찬조 감사 LED 전광판 (대시보드 상단, SPONSOR_NOTICE 연동)
- *   [3] 찬조 문구 등록 모달 (2순위 기능)
- *   [4] 기존 모든 기능 유지
+ * v4.4 변경:
+ *   [1] PC/모바일 대시보드 인사말 통일
+ *   [2] 모바일 빠른 실행 3개 고정 (.v44-quick)
+ *   [3] PC 대시보드 기수별 현황 제거 → 실용 패널 교체
+ *       (납부율 도넛 + 회비 미납 요약 + 최근 찬조 감사)
+ *   [4] 대시보드 2컬럼 레이아웃 (PC 메인+사이드)
+ *   [5] 공지사항 최근 5개, 행사 저장 로직 유지
+ *   [6] 찬조 전광판·행사관리·회원관리 기존 기능 유지
  */
 'use strict';
 
@@ -241,37 +244,80 @@ function startTicker() {
 }
 
 /* ═══════════════════════════════════════════════
-   대시보드
+   대시보드 — v4.4
 ═══════════════════════════════════════════════ */
 function renderDashboard() {
   Promise.all([
-    API.dash(),
-    API.notices(3).catch(function(){ return {success:true,notices:[]}; }),
-    API.getSponsorNotices().catch(function(){ return {success:true,notices:[]}; })
+    S.dashboard ? Promise.resolve(S.dashboard) : API.dash(),
+    API.notices(5).catch(function(){ return {success:true,notices:[]}; }),
+    API.getSponsorNotices().catch(function(){ return {success:true,notices:[]}; }),
+    API.unpaid().catch(function(){ return {success:true,members:[]}; })
   ])
   .then(function(res) {
     var d = res[0];
     if (!d.success) { setContent(errHtml(d.error)); return; }
     S.dashboard = d;
 
-    var notices = (res[1].success && res[1].notices) ? res[1].notices : [];
+    var notices        = (res[1].success && res[1].notices) ? res[1].notices : [];
     var sponsorNotices = (res[2].success && res[2].notices) ? res[2].notices : [];
-    S.sponsorNotices = sponsorNotices;
+    var unpaidMembers  = (res[3].success && res[3].members) ? res[3].members : [];
+    S.sponsorNotices   = sponsorNotices;
+    S.unpaid           = unpaidMembers;
 
     setSyncText();
 
-    var fee = CFG.ANNUAL_FEE || 0;
-    var pct = d.feeRate || 0;
+    var fee      = CFG.ANNUAL_FEE || 0;
+    var pct      = d.feeRate || 0;
     var upcoming = d.upcomingEvents || [];
 
-    /* ── LED 전광판 ── */
+    /* ── [유지] LED 전광판 ── */
     var tickerHtml = sponsorNotices.length ? buildTicker(sponsorNotices) : '';
 
-    /* ── 공지사항 ── */
-    var noticeHtml = '';
+    /* ── 인사말 (PC·모바일 공통) ── */
+    var greetingHtml =
+      '<div class="dash-greeting">' +
+      '<h2>안녕하세요, <span class="dash-org">J_LAB 회원여러분</span>. 화이팅^^</h2>' +
+      '<p>오늘의 운영 현황입니다.</p>' +
+      '</div>';
+
+    /* ── 운영 요약 미니 카드 ── */
+    var miniHtml =
+      '<div class="mini-stat-row">' +
+      mStat('총 회원수', d.total,      '명', 'ms-total') +
+      mStat('회비 납부', d.feePaid,    '명', 'ms-paid') +
+      mStat('회비 미납', d.feeUnpaid,  '명', 'ms-unpaid') +
+      '</div>';
+
+    /* ── [v4.4] 빠른 실행: 모바일 3개 / PC 4개 ── */
+    var quickHtml =
+      '<div class="dash-sec-lbl" style="margin-top:4px">⚡ 빠른 실행</div>' +
+      '<div class="quick-grid v44-quick">' +
+      qBtn('👥','회원관리','members') +
+      qBtn('📅','행사관리','events') +
+      qBtn('⚠️','미납 현황','unpaid') +
+      qBtn('💰','회비관리','fees', 'qb-fees-btn') +
+      '</div>';
+
+    /* ── 미납 배너 ── */
+    var unpaidBanner =
+      '<div class="unpaid-banner" onclick="navigate(\'unpaid\')" role="button" tabindex="0">' +
+      '<div class="ub-left">' +
+      '<div class="ub-dot"></div>' +
+      '<div>' +
+      '<div class="ub-title">⚠️ 회비 미납 현황</div>' +
+      '<div class="ub-desc">미납자 <strong>'+d.feeUnpaid+'명</strong>' +
+      (fee ? ' · 예상 미수금 <strong>'+fmtMoney(d.feeUnpaid*fee)+'</strong>' : '') +
+      '</div>' +
+      '</div>' +
+      '</div>' +
+      '<div class="ub-arrow">›</div>' +
+      '</div>';
+
+    /* ── [v4.4] 공지사항 카드 (최근 5개) ── */
+    var noticeCardHtml = '';
     if (notices.length) {
-      noticeHtml =
-        '<div class="dash-sec-lbl">📢 공지사항</div>' +
+      noticeCardHtml =
+        '<div class="dash-sec-lbl">📢 최근 공지사항</div>' +
         '<div class="notice-list">' +
         notices.map(function(n) {
           var imp = isImpY(n.important);
@@ -285,10 +331,11 @@ function renderDashboard() {
         '</div>';
     }
 
-    /* ── 다가오는 행사 ── */
+    /* ── [v4.4] 다가오는 행사 (최근 3개) ── */
     var upcomingHtml;
     if (upcoming.length) {
       upcomingHtml =
+        '<div class="dash-sec-lbl">📅 다가오는 행사</div>' +
         '<div class="upcoming-list">' +
         upcoming.map(function(e) {
           return '<div class="upcoming-card">' +
@@ -307,6 +354,7 @@ function renderDashboard() {
         '</div>';
     } else {
       upcomingHtml =
+        '<div class="dash-sec-lbl">📅 다가오는 행사</div>' +
         '<div class="upcoming-empty">' +
         '<span style="font-size:1.4rem">📅</span>' +
         '<span>예정된 행사가 없습니다<br/>' +
@@ -315,95 +363,95 @@ function renderDashboard() {
         '</div>';
     }
 
-    /* ── 빠른 실행 (모바일: 회비관리 숨김, 3개 노출) ── */
-    var quickHtml =
-      '<div class="quick-grid">' +
-      qBtn('👥','회원 검색','members') +
-      qBtn('📅','행사 관리','events') +
-      qBtn('💰','회비 관리','fees', 'qb-fees-btn') +
-      qBtn('⚠️','미납 현황','unpaid') +
-      '</div>';
-
-    /* ── 미니 카드 ── */
-    var miniHtml =
-      '<div class="mini-stat-row">' +
-      mStat('총 회원수', d.total,      '명', 'ms-total') +
-      mStat('회비 납부', d.feePaid,    '명', 'ms-paid') +
-      mStat('회비 미납', d.feeUnpaid,  '명', 'ms-unpaid') +
-      '</div>';
-
-    /* ── 미납 배너 ── */
-    var unpaidBanner =
-      '<div class="unpaid-banner" onclick="navigate(\'unpaid\')" role="button" tabindex="0">' +
-      '<div class="ub-left">' +
-      '<div class="ub-dot"></div>' +
-      '<div>' +
-      '<div class="ub-title">⚠️ 회비 미납 현황</div>' +
-      '<div class="ub-desc">미납자 <strong>'+d.feeUnpaid+'명</strong>' +
-      (fee ? ' · 예상 미수금 <strong>'+fmtMoney(d.feeUnpaid*fee)+'</strong>' : '') +
-      '</div>' +
-      '</div>' +
-      '</div>' +
-      '<div class="ub-arrow">›</div>' +
-      '</div>';
-
-    /* ── 데스크톱: 기수별 바 + 도넛 ── */
-    var maxGrad = 1;
-    (d.gradStats||[]).forEach(function(g){ if(g.count>maxGrad) maxGrad=g.count; });
-    var gradBars = (d.gradStats||[]).map(function(g){
-      var w = Math.round(g.count/maxGrad*100);
-      return '<div class="grad-bar-item">' +
-        '<div class="grad-bar-yr">'+esc(g.year)+'</div>' +
-        '<div class="grad-bar-track"><div class="grad-bar-fill" style="width:'+w+'%"></div></div>' +
-        '<div class="grad-bar-cnt">'+g.count+'</div></div>';
-    }).join('');
-
-    var desktopSection =
-      '<div class="dash-row desk-only">' +
-      '<div class="card">' +
-      '<div class="card-hdr"><div class="card-title"><div class="card-icon">📊</div>기수별 회원 현황</div></div>' +
-      '<div class="card-body">'+(gradBars||'<div class="empty" style="padding:24px"><div class="empty-icon">📋</div><div class="empty-title">기수 데이터 없음</div></div>')+'</div>' +
-      '</div>' +
-      '<div class="card">' +
-      '<div class="card-hdr"><div class="card-title"><div class="card-icon">💰</div>회비 납부율</div></div>' +
-      '<div class="card-body">' +
-      '<div class="donut-wrap">' +
-      '<div class="donut-ring" style="--pct:'+pct+'%">' +
-      '<div class="donut-hole"><div class="donut-pct">'+pct+'<span style="font-size:.7rem">%</span></div><div class="donut-sub">납부율</div></div>' +
-      '</div>' +
-      '<div>' +
-      '<div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>납부: <strong style="margin-left:4px">'+d.feePaid+'명</strong></div>' +
-      '<div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>미납: <strong style="margin-left:4px">'+d.feeUnpaid+'명</strong></div>' +
-      '<div class="legend-item"><div class="legend-dot" style="background:var(--gr300)"></div>전체: <strong style="margin-left:4px">'+d.total+'명</strong></div>' +
-      '</div>' +
-      '</div>' +
-      '<div class="divider"></div>' +
-      '<div class="prog-bar-track" style="height:10px"><div class="prog-bar-fill" style="width:'+pct+'%"></div></div>' +
-      '</div>' +
-      '</div>' +
-      '</div>';
+    /* ── [v4.4] PC 전용 우측 패널: 납부율 도넛 + 회비 미납 요약 + 최근 찬조 ── */
+    var desktopPanelHtml = buildDesktopPanel(d, pct, fee, unpaidMembers, sponsorNotices);
 
     /* ── 최종 렌더 ── */
     setContent(
-      '<div class="dash-greeting">' +
-      '<h2>안녕하세요, <span class="dash-org">J_LAB 회원여러분</span>. 화이팅^^</h2>' +
-      '<p>오늘의 운영 현황입니다.</p>' +
-      '</div>' +
+      /* 인사말 */
+      greetingHtml +
+      /* 찬조 전광판 */
       tickerHtml +
-      noticeHtml +
-      '<div class="dash-sec-lbl">📅 다가오는 행사</div>' + upcomingHtml +
-      '<div class="dash-sec-lbl" style="margin-top:22px">⚡ 빠른 실행</div>' + quickHtml +
-      miniHtml +
-      unpaidBanner +
-      desktopSection
+      /* PC: 2컬럼 레이아웃, 모바일: 단일 컬럼 */
+      '<div class="v44-dash-wrap">' +
+        /* 왼쪽(또는 전체) 메인 컬럼 */
+        '<div class="v44-main-col">' +
+          miniHtml +
+          unpaidBanner +
+          quickHtml +
+          noticeCardHtml +
+          upcomingHtml +
+        '</div>' +
+        /* 오른쪽: PC 전용 사이드 패널 */
+        '<div class="v44-side-col desk-only">' +
+          desktopPanelHtml +
+        '</div>' +
+      '</div>'
     );
 
-    // 전광판 애니메이션 시작 (DOM 렌더 후)
-    if (sponsorNotices.length) {
-      startTicker();
-    }
+    if (sponsorNotices.length) startTicker();
   })
   .catch(function(e){ setContent(errHtml(e.message)); });
+}
+
+/* ── PC 전용 사이드 패널 빌더 ── */
+function buildDesktopPanel(d, pct, fee, unpaidMembers, sponsorNotices) {
+  /* 납부율 도넛 */
+  var donutHtml =
+    '<div class="v44-panel-card">' +
+    '<div class="v44-panel-hdr"><div class="card-icon">💰</div>회비 납부율</div>' +
+    '<div class="v44-panel-body">' +
+    '<div class="donut-wrap">' +
+    '<div class="donut-ring" style="--pct:'+pct+'%">' +
+    '<div class="donut-hole">' +
+    '<div class="donut-pct">'+pct+'<span style="font-size:.7rem">%</span></div>' +
+    '<div class="donut-sub">납부율</div>' +
+    '</div>' +
+    '</div>' +
+    '<div>' +
+    '<div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>납부: <strong style="margin-left:4px">'+d.feePaid+'명</strong></div>' +
+    '<div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>미납: <strong style="margin-left:4px">'+d.feeUnpaid+'명</strong></div>' +
+    '<div class="legend-item"><div class="legend-dot" style="background:var(--gr300)"></div>전체: <strong style="margin-left:4px">'+d.total+'명</strong></div>' +
+    '</div>' +
+    '</div>' +
+    '<div class="divider" style="margin:12px 0"></div>' +
+    '<div class="prog-bar-track" style="height:10px"><div class="prog-bar-fill" style="width:'+pct+'%"></div></div>' +
+    '</div>' +
+    '</div>';
+
+  /* 회비 미납 요약 */
+  var unpaidSummaryHtml =
+    '<div class="v44-panel-card" style="margin-top:14px">' +
+    '<div class="v44-panel-hdr"><div class="card-icon">⚠️</div>회비 미납 요약</div>' +
+    '<div class="v44-panel-body">' +
+    '<div style="text-align:center;padding:10px 0">' +
+    '<div style="font-size:2rem;font-weight:800;color:var(--red);line-height:1">'+d.feeUnpaid+'<span style="font-size:.85rem;color:var(--gr400);font-weight:600">명</span></div>' +
+    '<div style="font-size:.78rem;color:var(--gr500);margin-top:4px">회비 미납 회원</div>' +
+    (fee ? '<div style="font-size:.82rem;color:var(--amber);font-weight:700;margin-top:6px">예상 미수금 '+fmtMoney(d.feeUnpaid*fee)+'</div>' : '') +
+    '</div>' +
+    '<button class="btn btn-gold btn-sm" style="width:100%;margin-top:10px" onclick="navigate(\'unpaid\')">⚠️ 미납 현황 보기</button>' +
+    '</div>' +
+    '</div>';
+
+  /* 최근 찬조 감사 카드 (최근 3건) */
+  var recentSponsors = sponsorNotices.slice(0, 3);
+  var sponsorCardHtml = '';
+  if (recentSponsors.length) {
+    sponsorCardHtml =
+      '<div class="v44-panel-card" style="margin-top:14px">' +
+      '<div class="v44-panel-hdr"><div class="card-icon">🎉</div>최근 찬조 감사</div>' +
+      '<div class="v44-panel-body">' +
+      recentSponsors.map(function(s) {
+        return '<div class="v44-spon-item">' +
+          '<div class="v44-spon-name">'+(s.sponsor_name ? esc(s.sponsor_name) : '—')+(s.generation ? ' <span class="v44-spon-gen">'+esc(s.generation)+'기</span>' : '')+'</div>' +
+          (s.notice_message ? '<div class="v44-spon-msg">'+esc(s.notice_message)+'</div>' : '') +
+          '</div>';
+      }).join('') +
+      '</div>' +
+      '</div>';
+  }
+
+  return donutHtml + unpaidSummaryHtml + sponsorCardHtml;
 }
 
 function qBtn(icon, label, page, extraCls) {
@@ -795,13 +843,18 @@ function setAttendStatus(idx, btn, status) {
   a.attend_status = status;
 
   btn.textContent = '저장중…'; btn.disabled = true;
-  if (!a.member_id) { toast('저장 실패: member_id 누락 (MEMBER_MASTER 회원ID 컬럼 확인)', 'err'); btn.textContent = status; btn.disabled = false; return; }
+  /* member_id 없으면 이름_기수 복합키로 대체 (MEMBER_MASTER에 회원ID 컬럼 없을 때) */
+  var effectiveMemberId = a.member_id || ((a.member_name||'') + '_' + (a.generation||''));
+  if (!effectiveMemberId || effectiveMemberId === '_') {
+    toast('저장 실패: 회원 정보 없음 (이름 확인)', 'err');
+    btn.textContent = status; btn.disabled = false; return;
+  }
   if (!S.currentEvent.id) { toast('저장 실패: event_id 누락', 'err'); btn.textContent = status; btn.disabled = false; return; }
 
   API.saveEventAttend({
     event_id:     S.currentEvent.id,
     event_name:   S.currentEvent.name,
-    member_id:    a.member_id,
+    member_id:    effectiveMemberId,
     member_name:  a.member_name,
     generation:   a.generation,
     phone:        a.phone,
@@ -828,12 +881,17 @@ function setPayStatus(idx, btn, status) {
   a.payment_status = status;
 
   btn.textContent = '저장중…'; btn.disabled = true;
-  if (!a.member_id) { toast('저장 실패: member_id 누락', 'err'); btn.textContent = status; btn.disabled = false; return; }
+  /* member_id 없으면 이름_기수 복합키로 대체 */
+  var effectivePayMemberId = a.member_id || ((a.member_name||'') + '_' + (a.generation||''));
+  if (!effectivePayMemberId || effectivePayMemberId === '_') {
+    toast('저장 실패: 회원 정보 없음 (이름 확인)', 'err');
+    btn.textContent = status; btn.disabled = false; return;
+  }
 
   API.saveEventAttend({
     event_id:      S.currentEvent.id,
     event_name:    S.currentEvent.name,
-    member_id:     a.member_id,
+    member_id:     effectivePayMemberId,
     member_name:   a.member_name,
     generation:    a.generation,
     phone:         a.phone,
@@ -848,12 +906,14 @@ function setPayStatus(idx, btn, status) {
 function saveMemo(idx, memo) {
   if (!S.currentEvent || !S.currentAttendList) return;
   var a = S.currentAttendList[idx];
-  if (!a || !a.member_id) { toast('메모 저장 실패: 회원 정보 없음', 'err'); return; }
+  if (!a) { toast('메모 저장 실패: 회원 정보 없음', 'err'); return; }
+  var effectiveMemoMemberId = a.member_id || ((a.member_name||'') + '_' + (a.generation||''));
+  if (!effectiveMemoMemberId || effectiveMemoMemberId === '_') { toast('메모 저장 실패: 회원ID 없음', 'err'); return; }
   a.memo = memo;
   API.saveEventAttend({
     event_id:    S.currentEvent.id,
     event_name:  S.currentEvent.name,
-    member_id:   a.member_id,
+    member_id:   effectiveMemoMemberId,
     member_name: a.member_name,
     generation:  a.generation,
     phone:       a.phone,
