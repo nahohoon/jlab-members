@@ -53,11 +53,30 @@ var API = {
     var url = CFG.API_URL || '';
     if (!url || url.indexOf('YOUR_SCRIPT_ID') !== -1)
       return Promise.reject(new Error('config.js의 API_URL을 설정해 주세요.'));
+    /*
+     * [v4.5 수정] Content-Type을 text/plain으로 변경
+     * Google Apps Script 웹앱은 application/json 헤더가 붙은 POST를 받으면
+     * CORS preflight(OPTIONS)가 발생하는데 GAS는 OPTIONS를 처리하지 않아
+     * fetch 자체가 네트워크 오류로 실패함.
+     * text/plain으로 보내면 simple request로 처리되어 preflight 없이
+     * doPost(e)에 정상 도달하며, e.postData.contents를 JSON.parse하므로
+     * 서버 측 동작에는 변화 없음.
+     */
     return fetch(url, {
       method:'POST', redirect:'follow',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
       body: JSON.stringify(body)
-    }).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); });
+    }).then(function(r){
+      if(!r.ok) throw new Error('HTTP '+r.status+' — Apps Script 응답 오류');
+      return r.json();
+    }).catch(function(fetchErr) {
+      /* fetch 자체 실패 시 원인 구분 */
+      var msg = fetchErr.message || String(fetchErr);
+      if (msg.indexOf('Failed to fetch') !== -1 || msg.indexOf('NetworkError') !== -1) {
+        throw new Error('네트워크 오류: Apps Script URL을 확인하거나 배포 권한(모든 사람)을 확인하세요.');
+      }
+      throw fetchErr;
+    });
   },
 
   /* GET */
@@ -818,31 +837,41 @@ function setAttendStatus(idx, btn, status) {
     grp.querySelectorAll('.ea-status-btn').forEach(function(b){ b.className = 'ea-status-btn'; });
     btn.className = 'ea-status-btn ea-btn-active-'+getAttendClass(status);
   }
-  // 로컬 상태 반영 (다음 저장 시 유효)
   a.attend_status = status;
 
   btn.textContent = '저장중…'; btn.disabled = true;
-  /* member_id 없으면 이름_기수 복합키로 대체 (MEMBER_MASTER에 회원ID 컬럼 없을 때) */
-  var effectiveMemberId = a.member_id || ((a.member_name||'') + '_' + (a.generation||''));
-  if (!effectiveMemberId || effectiveMemberId === '_') {
-    toast('저장 실패: 회원 정보 없음 (이름 확인)', 'err');
+
+  /* event_id 확인 */
+  if (!S.currentEvent.id) {
+    toast('저장 실패: event_id 누락 — 행사를 다시 선택해 주세요.', 'err');
     btn.textContent = status; btn.disabled = false; return;
   }
-  if (!S.currentEvent.id) { toast('저장 실패: event_id 누락', 'err'); btn.textContent = status; btn.disabled = false; return; }
+
+  /* member_id: 없으면 이름_기수 복합키 (Code.gs의 getEventAttend와 동일 규칙) */
+  var effectiveMemberId = a.member_id || ((a.member_name||'') + '_' + (a.generation||''));
+  if (!effectiveMemberId || effectiveMemberId === '_') {
+    toast('저장 실패: member_id 없음 — MEMBER_MASTER에 이름 또는 기수를 입력해 주세요.', 'err');
+    btn.textContent = status; btn.disabled = false; return;
+  }
 
   API.saveEventAttend({
-    event_id:     S.currentEvent.id,
-    event_name:   S.currentEvent.name,
-    member_id:    effectiveMemberId,
-    member_name:  a.member_name,
-    generation:   a.generation,
-    phone:        a.phone,
+    event_id:      S.currentEvent.id,
+    event_name:    S.currentEvent.name,
+    member_id:     effectiveMemberId,
+    member_name:   a.member_name,
+    generation:    a.generation,
+    phone:         a.phone,
     attend_status: status
   }).then(function(r){
     btn.textContent = status; btn.disabled = false;
-    if (!r.success) { toast('저장 실패: '+(r.error||'알 수 없는 오류'), 'err'); return; }
-    toast(a.member_name+' 참석: '+status+' ✓', 'ok');
-  }).catch(function(e){ btn.textContent = status; btn.disabled = false; toast('저장 오류: '+e.message, 'err'); });
+    if (!r.success) {
+      toast('저장 실패: ' + (r.error || '알 수 없는 오류'), 'err'); return;
+    }
+    toast('저장되었습니다 ✓ (' + (a.member_name||'') + ' 참석: ' + status + ')', 'ok');
+  }).catch(function(e){
+    btn.textContent = status; btn.disabled = false;
+    toast('저장 오류: ' + e.message, 'err');
+  });
 }
 
 function setPayStatus(idx, btn, status) {
@@ -860,26 +889,38 @@ function setPayStatus(idx, btn, status) {
   a.payment_status = status;
 
   btn.textContent = '저장중…'; btn.disabled = true;
-  /* member_id 없으면 이름_기수 복합키로 대체 */
+
+  /* event_id 확인 */
+  if (!S.currentEvent.id) {
+    toast('저장 실패: event_id 누락 — 행사를 다시 선택해 주세요.', 'err');
+    btn.textContent = status; btn.disabled = false; return;
+  }
+
+  /* member_id: 없으면 이름_기수 복합키 (Code.gs의 getEventAttend와 동일 규칙) */
   var effectivePayMemberId = a.member_id || ((a.member_name||'') + '_' + (a.generation||''));
   if (!effectivePayMemberId || effectivePayMemberId === '_') {
-    toast('저장 실패: 회원 정보 없음 (이름 확인)', 'err');
+    toast('저장 실패: member_id 없음 — MEMBER_MASTER에 이름 또는 기수를 입력해 주세요.', 'err');
     btn.textContent = status; btn.disabled = false; return;
   }
 
   API.saveEventAttend({
-    event_id:      S.currentEvent.id,
-    event_name:    S.currentEvent.name,
-    member_id:     effectivePayMemberId,
-    member_name:   a.member_name,
-    generation:    a.generation,
-    phone:         a.phone,
+    event_id:       S.currentEvent.id,
+    event_name:     S.currentEvent.name,
+    member_id:      effectivePayMemberId,
+    member_name:    a.member_name,
+    generation:     a.generation,
+    phone:          a.phone,
     payment_status: status
   }).then(function(r){
     btn.textContent = status; btn.disabled = false;
-    if (!r.success) { toast('저장 실패: '+(r.error||'알 수 없는 오류'), 'err'); return; }
-    toast(a.member_name+' 납부: '+status+' ✓', 'ok');
-  }).catch(function(e){ btn.textContent = status; btn.disabled = false; toast('저장 오류: '+e.message, 'err'); });
+    if (!r.success) {
+      toast('저장 실패: ' + (r.error || '알 수 없는 오류'), 'err'); return;
+    }
+    toast('저장되었습니다 ✓ (' + (a.member_name||'') + ' 납부: ' + status + ')', 'ok');
+  }).catch(function(e){
+    btn.textContent = status; btn.disabled = false;
+    toast('저장 오류: ' + e.message, 'err');
+  });
 }
 
 function saveMemo(idx, memo) {
@@ -887,7 +928,9 @@ function saveMemo(idx, memo) {
   var a = S.currentAttendList[idx];
   if (!a) { toast('메모 저장 실패: 회원 정보 없음', 'err'); return; }
   var effectiveMemoMemberId = a.member_id || ((a.member_name||'') + '_' + (a.generation||''));
-  if (!effectiveMemoMemberId || effectiveMemoMemberId === '_') { toast('메모 저장 실패: 회원ID 없음', 'err'); return; }
+  if (!effectiveMemoMemberId || effectiveMemoMemberId === '_') {
+    toast('메모 저장 실패: member_id 없음', 'err'); return;
+  }
   a.memo = memo;
   API.saveEventAttend({
     event_id:    S.currentEvent.id,
@@ -898,9 +941,9 @@ function saveMemo(idx, memo) {
     phone:       a.phone,
     memo:        memo
   }).then(function(r){
-    if (r.success) toast(a.member_name+' 메모 저장 완료', 'ok');
-    else toast('메모 저장 실패: '+(r.error||''), 'err');
-  }).catch(function(e){ toast(e.message,'err'); });
+    if (r.success) toast('저장되었습니다 ✓ (' + (a.member_name||'') + ' 메모)', 'ok');
+    else toast('메모 저장 실패: ' + (r.error || ''), 'err');
+  }).catch(function(e){ toast('저장 오류: ' + e.message, 'err'); });
 }
 
 /* 목록으로 돌아가기 */
