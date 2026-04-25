@@ -562,3 +562,300 @@ html, body {
     padding:10px 18px!important; font-size:.85rem!important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   [v4.6] 행사 사진 갤러리 — event-photo-section
+   표시 위치: 행사 상세 운영 화면 하단 (.ev-detail-card 내부)
+   대시보드 미사용
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 섹션 컨테이너 ── */
+.event-photo-section {
+  border-top: 1px solid var(--gr100);
+  padding: 20px 20px 24px;
+  background: var(--gr50);
+}
+
+/* 섹션 레이블 */
+.ep-sec-lbl {
+  font-size: .82rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  color: var(--gr500);
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ep-count {
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--white);
+  background: var(--n600);
+  border-radius: 10px;
+  padding: 2px 8px;
+  letter-spacing: 0;
+}
+
+/* 로딩 / 빈 상태 */
+.ep-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 0 10px;
+  color: var(--gr400);
+  font-size: .82rem;
+}
+.ep-empty {
+  padding: 16px 0 8px;
+  color: var(--gr400);
+  font-size: .82rem;
+}
+
+/* ── 사진 그리드 ── */
+/* PC: 3열 카드형 */
+.event-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ── 사진 카드 ── */
+.event-photo-card {
+  background: var(--white);
+  border: 1px solid var(--gr200);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  box-shadow: var(--sh1);
+  cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.event-photo-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--sh2);
+}
+
+/* 이미지 래퍼 — 16:9 비율 고정 */
+.event-photo-img-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--gr100);
+}
+.event-photo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform .3s ease;
+}
+.event-photo-card:hover .event-photo-img {
+  transform: scale(1.04);
+}
+
+/* 호버 오버레이 */
+.ep-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 22, 40, .35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+.event-photo-card:hover .ep-overlay { opacity: 1; }
+.ep-zoom-icon { font-size: 1.6rem; }
+
+/* 카드 텍스트 영역 */
+.event-photo-title {
+  font-size: .82rem;
+  font-weight: 700;
+  color: var(--n800);
+  padding: 10px 12px 2px;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.event-photo-date {
+  font-size: .7rem;
+  color: var(--gr400);
+  padding: 0 12px 4px;
+}
+.event-photo-caption {
+  font-size: .76rem;
+  color: var(--gr500);
+  padding: 0 12px 10px;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+/* ── 모바일 반응형 ── */
+/* 900px 이하: 2열 */
+@media (max-width: 900px) {
+  .event-photo-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .event-photo-section { padding: 16px 14px 20px; }
+}
+
+/* 600px 이하: 1열 (가독성 우선) */
+@media (max-width: 600px) {
+  .event-photo-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .event-photo-img-wrap { aspect-ratio: 4 / 3; }
+  .event-photo-title   { font-size: .84rem; }
+  .event-photo-caption { font-size: .78rem; }
+  .event-photo-section { padding: 14px 12px 18px; }
+}
+
+/* 390px 이하 초소형 */
+@media (max-width: 390px) {
+  .event-photo-grid    { gap: 10px; }
+  .event-photo-img-wrap { aspect-ratio: 3 / 2; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   [v4.6] 사진 전체화면 모달 (#photoModalOverlay)
+   ═══════════════════════════════════════════════════════════ */
+#photoModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 10, 20, .92);
+  backdrop-filter: blur(6px);
+  z-index: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .22s ease;
+  box-sizing: border-box;
+}
+#photoModalOverlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 모달 내부 컨테이너 */
+#photoModal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 860px;
+  max-height: 96vh;
+  position: relative;
+}
+
+/* 이미지 */
+#photoModalImg {
+  width: 100%;
+  max-height: 72vh;
+  object-fit: contain;
+  border-radius: 10px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.6);
+  display: block;
+  background: #111;
+}
+
+/* 하단 정보 바 */
+.pm-info {
+  width: 100%;
+  margin-top: 14px;
+  text-align: center;
+}
+#photoModalTitle {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--white);
+  margin-bottom: 4px;
+}
+#photoModalCaption {
+  font-size: .82rem;
+  color: rgba(255,255,255,.65);
+  line-height: 1.5;
+}
+#photoModalDate {
+  font-size: .74rem;
+  color: rgba(255,255,255,.45);
+  margin-top: 3px;
+}
+#photoModalCount {
+  font-size: .72rem;
+  color: rgba(255,255,255,.45);
+  margin-top: 6px;
+}
+
+/* 닫기 버튼 */
+#photoModalClose {
+  position: absolute;
+  top: -44px;
+  right: 0;
+  background: rgba(255,255,255,.12);
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--white);
+  font-size: 1.1rem;
+  transition: background .15s;
+}
+#photoModalClose:hover { background: rgba(255,255,255,.25); }
+
+/* 이전/다음 버튼 */
+.pm-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255,255,255,.14);
+  border: none;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--white);
+  font-size: 1.3rem;
+  transition: background .15s;
+  z-index: 2;
+}
+.pm-nav:hover { background: rgba(255,255,255,.28); }
+#photoModalPrev { left: -56px; }
+#photoModalNext { right: -56px; }
+
+/* 모바일: 이전/다음 버튼 위치 조정 */
+@media (max-width: 600px) {
+  #photoModalImg  { max-height: 58vh; }
+  #photoModalPrev { left: 4px; }
+  #photoModalNext { right: 4px; }
+  .pm-nav {
+    top: auto;
+    bottom: -52px;
+    transform: none;
+    background: rgba(255,255,255,.18);
+  }
+  #photoModalClose { top: -42px; right: 0; }
+  #photoModalTitle { font-size: .9rem; }
+}
+@media (max-width: 390px) {
+  #photoModalImg  { max-height: 52vh; }
+  #photoModalTitle { font-size: .84rem; }
+  #photoModalCaption { font-size: .76rem; }
+}

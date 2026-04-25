@@ -1,5 +1,5 @@
 /**
- * J_LAB 회원관리 v4.5.2 — script.js
+ * J_LAB 회원관리 v4.6 — script.js
  * GitHub Pages SPA | Apps Script API 연동
  * ─────────────────────────────────────────────────────────────────
  * v4.5 변경:
@@ -11,6 +11,11 @@
  *   [6] image_url 지원 (NOTICE_MASTER, EVENT_MASTER)
  *   [7] Google Drive 링크 자동 변환 함수 추가
  *   [8] Code.gs와 member_id 복합키 완전 일치 보장
+ * v4.6 변경:
+ *   [1] PHOTO_GALLERY 행사 사진 갤러리 기능 추가
+ *   [2] 행사 상세 화면 하단에 사진 배너 표시 (대시보드 제외)
+ *   [3] 사진 클릭 시 전체화면 모달 (이전/다음 네비게이션 + 키보드 지원)
+ *   [4] API.getPhotoGallery — event_name 기준 필터링
  * v4.5.2 변경:
  * [1] 모바일 공지사항 완전 강제 정렬 — 900/600/390px 구간 전체 재선언
  * [2] index.html ?v=455 캐시 버스터 적용
@@ -103,7 +108,12 @@ var API = {
   attend          : function(id) { return API.call({ action:'getEventAttendance', eventId:id }); },
   saveFee         : function(ri, val) { return API.post({ action:'updateFeeStatus', rowIndex:ri, value:val }); },
   saveEventAttendLegacy: function(ri,col,val){ return API.post({ action:'updateEventAttend', rowIndex:ri, col:col, value:val }); },
-  addEventAttend  : function(body){ return API.post(Object.assign({ action:'addEventAttend' }, body)); }
+  addEventAttend  : function(body){ return API.post(Object.assign({ action:'addEventAttend' }, body)); },
+
+  /* [v4.6] 행사 사진 갤러리 */
+  getPhotoGallery : function(eventName) {
+    return API.call({ action:'getPhotoGallery', event_name: eventName || '', limit: 50 });
+  }
 };
 
 /* ─── 유틸 ───────────────────────────────────── */
@@ -792,7 +802,16 @@ function renderEventDetail(sec, d) {
       '<div class="ea-list">' + rows + '</div>' :
       '<div class="empty"><div class="empty-icon">👥</div><div class="empty-title">MEMBERS 시트에 회원 데이터를 등록하세요</div></div>'
     ) +
+    /* [v4.6] 행사 사진 배너 — 비동기 로딩 플레이스홀더 */
+    '<div id="eventPhotoSection" class="event-photo-section">' +
+    '<div class="ep-loading"><div class="mini-spin"></div> 사진 불러오는 중...</div>' +
+    '</div>' +
     '</div>';
+
+  /* [v4.6] 참석 데이터 렌더 완료 후 사진 비동기 로딩 */
+  if (S.currentEvent && S.currentEvent.name) {
+    loadEventPhotos(S.currentEvent.name);
+  }
 }
 
 function evStat(label, num, color) {
@@ -956,8 +975,108 @@ function closeEventDetail() {
 }
 
 /* ═══════════════════════════════════════════════
-   찬조 감사 문구 등록 모달 (2순위 기능)
+   [v4.6] 행사 사진 갤러리 — loadEventPhotos / renderEventPhotos
+   표시 위치: 행사 상세 운영 화면 하단 (#eventPhotoSection)
+   대시보드에는 표시하지 않음
 ═══════════════════════════════════════════════ */
+
+/**
+ * 사진 목록 비동기 로딩 — event_name 기준으로 PHOTO_GALLERY 조회
+ * @param {string} eventName  현재 행사명
+ */
+function loadEventPhotos(eventName) {
+  var sec = $id('eventPhotoSection');
+  if (!sec) return;
+
+  API.getPhotoGallery(eventName)
+    .then(function(d) {
+      if (!d.success) { sec.innerHTML = ''; return; }
+      renderEventPhotos(sec, d.photos || [], eventName);
+    })
+    .catch(function() { sec.innerHTML = ''; });
+}
+
+/**
+ * 사진 갤러리 HTML 렌더링
+ * @param {Element} sec       삽입 대상 DOM
+ * @param {Array}   photos    사진 데이터 배열
+ * @param {string}  eventName 행사명 (섹션 헤더 표시용)
+ */
+function renderEventPhotos(sec, photos, eventName) {
+  if (!photos || !photos.length) {
+    sec.innerHTML =
+      '<div class="ep-empty">📷 등록된 행사 사진이 없습니다.</div>';
+    return;
+  }
+
+  var cards = photos.map(function(p, i) {
+    var imgUrl = normalizeImageUrl(p.image_url);
+    return '<div class="event-photo-card" data-photo-idx="' + i + '">' +
+      '<div class="event-photo-img-wrap">' +
+      '<img class="event-photo-img" src="' + esc(imgUrl) + '" alt="' + esc(p.title) + '" ' +
+      'loading="lazy" onerror="this.closest(\'.event-photo-card\').style.display=\'none\'">' +
+      '<div class="ep-overlay"><span class="ep-zoom-icon">🔍</span></div>' +
+      '</div>' +
+      (p.title   ? '<div class="event-photo-title">'  + esc(p.title)   + '</div>' : '') +
+      (p.photo_date ? '<div class="event-photo-date">' + esc(p.photo_date) + '</div>' : '') +
+      (p.caption ? '<div class="event-photo-caption">' + esc(p.caption) + '</div>' : '') +
+      '</div>';
+  }).join('');
+
+  sec.innerHTML =
+    '<div class="ep-sec-lbl">📸 행사 사진 <span class="ep-count">' + photos.length + '장</span></div>' +
+    '<div class="event-photo-grid" id="eventPhotoGrid">' + cards + '</div>';
+
+  /* 사진 카드 클릭 → 모달 확대 */
+  var grid = $id('eventPhotoGrid');
+  if (grid) {
+    grid.addEventListener('click', function(e) {
+      var card = e.target.closest('[data-photo-idx]');
+      if (!card) return;
+      var idx = parseInt(card.getAttribute('data-photo-idx'));
+      openPhotoModal(photos, idx);
+    });
+  }
+}
+
+/** 사진 전체화면 모달 */
+var _photoList  = [];
+var _photoIdx   = 0;
+
+function openPhotoModal(photos, idx) {
+  _photoList = photos;
+  _photoIdx  = idx;
+  var overlay = $id('photoModalOverlay');
+  if (!overlay) return;
+  showPhotoModal();
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closePhotoModal() {
+  var overlay = $id('photoModalOverlay');
+  if (overlay) overlay.classList.remove('open');
+  document.body.style.overflow = '';
+}
+function showPhotoModal() {
+  var p      = _photoList[_photoIdx];
+  var imgEl  = $id('photoModalImg');
+  var ttlEl  = $id('photoModalTitle');
+  var capEl  = $id('photoModalCaption');
+  var dtEl   = $id('photoModalDate');
+  var cntEl  = $id('photoModalCount');
+  if (!p || !imgEl) return;
+  imgEl.src = normalizeImageUrl(p.image_url);
+  if (ttlEl)  ttlEl.textContent  = p.title   || '';
+  if (capEl)  capEl.textContent  = p.caption || '';
+  if (dtEl)   dtEl.textContent   = p.photo_date || '';
+  if (cntEl)  cntEl.textContent  = (_photoIdx + 1) + ' / ' + _photoList.length;
+}
+function photoModalPrev() {
+  if (_photoIdx > 0) { _photoIdx--; showPhotoModal(); }
+}
+function photoModalNext() {
+  if (_photoIdx < _photoList.length - 1) { _photoIdx++; showPhotoModal(); }
+}
 function openSponsorModal() {
   var overlay = $id('sponsorModalOverlay');
   if (!overlay) return;
@@ -1171,6 +1290,22 @@ document.addEventListener('DOMContentLoaded', function() {
   if(sponClose) sponClose.addEventListener('click', closeSponsorModal);
   var sponOverlay = $id('sponsorModalOverlay');
   if(sponOverlay) sponOverlay.addEventListener('click',function(e){ if(e.target===this) closeSponsorModal(); });
+
+  /* [v4.6] 사진 모달 이벤트 바인딩 */
+  var photoOverlay = $id('photoModalOverlay');
+  if(photoOverlay) photoOverlay.addEventListener('click', function(e){ if(e.target===this) closePhotoModal(); });
+  var photoClose = $id('photoModalClose');
+  if(photoClose) photoClose.addEventListener('click', closePhotoModal);
+  var photoPrev  = $id('photoModalPrev');
+  if(photoPrev)  photoPrev.addEventListener('click',  photoModalPrev);
+  var photoNext  = $id('photoModalNext');
+  if(photoNext)  photoNext.addEventListener('click',  photoModalNext);
+  /* 키보드: ESC 닫기, 좌우 화살표 이동 */
+  document.addEventListener('keydown', function(e) {
+    if (!$id('photoModalOverlay') || !$id('photoModalOverlay').classList.contains('open')) return;
+    if (e.key === 'ArrowLeft')  photoModalPrev();
+    if (e.key === 'ArrowRight') photoModalNext();
+  });
 
   if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(function(){}); }
 
