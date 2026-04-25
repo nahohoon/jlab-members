@@ -386,11 +386,96 @@ html, body {
   margin-bottom: 4px;
 }
 
-/* 모바일 폰트 보정 */
+/* ── [v4.5.2] 모바일 공지사항 완전 강제 정렬 (모바일 우선) ──────────────
+   대상: 900px 이하 모든 스마트폰/태블릿
+   style.css 의 .notice-item { display:flex } 가 모바일에서 다시 살아나는 현상 차단
+   모든 구간(900/600/480/390px)에서 동일하게 재선언
+   ─────────────────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .notice-title { font-size: 1rem !important; }
-  .notice-body  { font-size: .9375rem !important; }
-  .notice-date  { font-size: .72rem !important; }
+  /* notice-item: flex 완전 해제 */
+  .notice-item {
+    display: block !important;
+    flex-direction: unset !important;
+    align-items: unset !important;
+    justify-content: unset !important;
+    text-align: left !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  /* notice-block: 세로형 블록 컨테이너 */
+  .notice-block {
+    display: block !important;
+    width: 100% !important;
+    text-align: left !important;
+    box-sizing: border-box !important;
+  }
+  /* 공지ID */
+  .notice-id {
+    display: block !important;
+    width: 100% !important;
+    text-align: left !important;
+    float: none !important;
+    font-size: .72rem !important;
+  }
+  /* 제목 */
+  .notice-title {
+    display: block !important;
+    width: 100% !important;
+    text-align: left !important;
+    float: none !important;
+    flex: unset !important;
+    align-self: unset !important;
+    font-size: 1rem !important;
+  }
+  /* 본문 — 핵심: width:100% + display:block + text-align:left 모바일 재강제 */
+  .notice-body {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    text-align: left !important;
+    float: none !important;
+    flex: unset !important;
+    align-self: unset !important;
+    white-space: normal !important;
+    word-break: keep-all !important;
+    overflow-wrap: anywhere !important;
+    line-height: 1.6 !important;
+    font-size: .9375rem !important;
+    margin-top: 4px !important;
+  }
+  /* 날짜: 왼쪽 정렬 유지 */
+  .notice-date {
+    display: block !important;
+    width: 100% !important;
+    text-align: left !important;
+    float: none !important;
+    flex: unset !important;
+    font-size: .72rem !important;
+    margin-top: 6px !important;
+  }
+  /* 중요 뱃지 */
+  .notice-badge {
+    display: inline-block !important;
+    float: none !important;
+    align-self: unset !important;
+  }
+}
+
+/* 600px 이하 소형 폰 추가 강제 */
+@media (max-width: 600px) {
+  .notice-item  { display: block !important; text-align: left !important; width: 100% !important; }
+  .notice-block { display: block !important; text-align: left !important; width: 100% !important; }
+  .notice-title { display: block !important; text-align: left !important; width: 100% !important; font-size: .94rem !important; }
+  .notice-body  { display: block !important; text-align: left !important; width: 100% !important; font-size: .88rem !important; white-space: normal !important; }
+  .notice-date  { display: block !important; text-align: left !important; width: 100% !important; font-size: .7rem !important; }
+}
+
+/* 390px 이하 초소형 폰 */
+@media (max-width: 390px) {
+  .notice-item  { display: block !important; text-align: left !important; width: 100% !important; }
+  .notice-block { display: block !important; text-align: left !important; width: 100% !important; }
+  .notice-title { font-size: .9rem !important; }
+  .notice-body  { font-size: .84rem !important; white-space: normal !important; word-break: keep-all !important; }
 }
 
 /* 다가오는 행사 글씨도 충분히 */
